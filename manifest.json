@@ -1,7 +1,7 @@
 {
   "name": "NeuroFlow Tracker",
   "short_name": "NeuroFlow",
-  "start_url": "neuroflow_study_recovery_tracker.html",
+  "start_url": "index.html",
   "display": "standalone",
   "background_color": "#0B0F19",
   "theme_color": "#111827",
