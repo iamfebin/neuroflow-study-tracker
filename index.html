@@ -280,7 +280,7 @@
             </div>
             <div class="flex flex-col gap-3">
                 <button onclick="overrideLockoutForDebug()" class="text-xs text-slate-500 hover:text-slate-400 underline transition">
-                    Overriding Lockout (Developer/Testing Mode)
+                    Override Lockout (Testing Mode)
                 </button>
             </div>
         </div>
@@ -294,10 +294,10 @@
             <p class="text-xs text-slate-400 mt-1 mb-6">Letting the brain reorganize data connections</p>
             
             <div class="bg-slate-950/40 border border-slate-800 p-4 rounded-xl text-left text-xs space-y-2.5 text-slate-300 mb-6 leading-relaxed">
-                <p>💡 **Instructions for your 10 or 30-minute Rest:**</p>
-                <p>• Avoid looking at screens entirely. Avoid checking social media.</p>
-                <p>• Stand up, stretch, or walk outside to receive natural ambient sunlight.</p>
-                <p>• Let your thoughts drift naturally. This is when deep logical synthesis occurs.</p>
+                <p>💡 **Instructions for your Rest:**</p>
+                <p>• Avoid looking at screens or social media entirely.</p>
+                <p>• Stand up, stretch, or walk outside to receive ambient sunlight.</p>
+                <p>• Let thoughts drift naturally. This is when deep logical synthesis occurs.</p>
             </div>
 
             <!-- Countdown inside Diffuse View -->
@@ -329,7 +329,21 @@
                 <div class="space-y-3">
                     <div>
                         <label class="block text-xs font-bold text-slate-400 mb-1">Firebase Configuration (JSON format)</label>
-                        <textarea id="firebase-config-input" rows="5" class="w-full bg-nordic-950 border border-slate-800 focus:border-nordic-accent rounded-xl p-3 text-xs font-mono text-slate-300 placeholder:text-slate-600 focus:outline-none" placeholder='{&#10;  "apiKey": "...",&#10;  "authDomain": "...",&#10;  "projectId": "...",&#10;  "storageBucket": "...",&#10;  "messagingSenderId": "...",&#10;  "appId": "..."&#10;}'></textarea>
+                        <textarea id="firebase-config-input" rows="4" class="w-full bg-nordic-950 border border-slate-800 focus:border-nordic-accent rounded-xl p-3 text-xs font-mono text-slate-300 focus:outline-none" placeholder='{"apiKey": "...", ...}'></textarea>
+                    </div>
+
+                    <!-- User Account Registration Card -->
+                    <div class="p-4 bg-nordic-950 border border-slate-800 rounded-xl space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-300 block" id="auth-title-label">User Account (Sign In)</span>
+                            <button type="button" id="auth-mode-toggle" onclick="toggleAuthMode()" class="text-[11px] text-nordic-active font-semibold hover:underline">
+                                Need an account? Register
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input type="email" id="auth-email-input" placeholder="Account Email" class="bg-nordic-900 border border-slate-800 text-xs p-2.5 rounded-lg focus:outline-none focus:border-nordic-active text-slate-100">
+                            <input type="password" id="auth-pass-input" placeholder="Secure Password" class="bg-nordic-900 border border-slate-800 text-xs p-2.5 rounded-lg focus:outline-none focus:border-nordic-active text-slate-100">
+                        </div>
                     </div>
 
                     <div class="flex flex-col sm:flex-row gap-3">
@@ -354,7 +368,7 @@
                 </div>
 
                 <div class="border-t border-slate-800 pt-4 flex justify-between items-center text-xs">
-                    <span class="text-slate-500">NeuroFlow build v1.0.0</span>
+                    <span class="text-slate-500">NeuroFlow build v1.2.0</span>
                     <button onclick="resetAllAppData()" class="text-red-400 hover:underline">Reset Local Storage</button>
                 </div>
             </div>
@@ -364,9 +378,9 @@
     <!-- Main JS Application Integration -->
     <script type="module">
         // Import Firebase modules safely from JS CDNs (Required in browser-only settings)
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Constants & Core Schedules definition
         const APP_ID = 'neuroflow-tracker';
@@ -396,7 +410,7 @@
         let state = {
             currentDateStr: "",
             user_settings: {
-                user_id: "learner_01",
+                user_id: "",
                 current_streak: 0,
                 longest_streak: 0,
                 swapped_logic_subjects: {}, // Maps dayString_blockId -> 'SQL' or 'Python'
@@ -435,7 +449,9 @@
         let firebaseAuth = null;
         let firebaseDb = null;
         let isFirebaseConnected = false;
-        let syncStatusUnsubscribe = null;
+        let unsubscribeSettings = null;
+        let unsubscribeLogs = null;
+        let authMode = 'signin';
 
         // Initialize App & Hook UI Events
         window.onload = function() {
@@ -476,10 +492,10 @@
             if (!isTimeSimulated) {
                 simTimeOffset = 0;
                 btn.innerText = "System Time";
-                btn.classList.replace('bg-emerald-600', 'bg-nordic-800');
+                btn.className = "text-xs font-semibold px-2.5 py-1 bg-nordic-800 text-slate-300 rounded-lg hover:bg-slate-700 border border-slate-700 transition";
             } else {
                 btn.innerText = "Simulated";
-                btn.classList.replace('bg-nordic-800', 'bg-emerald-600');
+                btn.className = "text-xs font-semibold px-2.5 py-1 bg-emerald-600 text-slate-100 rounded-lg hover:bg-emerald-500 border border-slate-600 transition";
             }
             getCurrentDateString();
             renderProtocolList();
@@ -513,6 +529,21 @@
             return new Date();
         }
 
+        // Auth toggle setup for Settings card
+        window.toggleAuthMode = function() {
+            const label = document.getElementById('auth-title-label');
+            const toggle = document.getElementById('auth-mode-toggle');
+            if (authMode === 'signin') {
+                authMode = 'register';
+                label.innerText = "User Account (Register)";
+                toggle.innerText = "Already have an account? Sign In";
+            } else {
+                authMode = 'signin';
+                label.innerText = "User Account (Sign In)";
+                toggle.innerText = "Need an account? Register";
+            }
+        }
+
         // Logic swaps SQL <-> Python inside current state
         window.swapSubject = function(blockId) {
             const stateKey = `${state.currentDateStr}_${blockId}`;
@@ -520,75 +551,67 @@
             const nextSub = currentSub === 'SQL' ? 'Python' : 'SQL';
             
             state.user_settings.swapped_logic_subjects[stateKey] = nextSub;
-            saveAndSyncData();
+            saveStateAndSync();
             renderProtocolList();
             
             // If the swapped block is the currently focused block, update the timer title!
             if (activeBlockRef && activeBlockRef.id === blockId) {
-                document.getElementById('timer-block-title').innerText = `${nextSub} Focus Session`;
+                setTrackingBlockUI(activeBlockRef);
             }
         }
 
-        // Render timeline based on actual time
-        function renderProtocolList() {
+        // Render timeline with correct classes
+        window.renderProtocolList = function() {
             const container = document.getElementById('schedule-container');
             container.innerHTML = '';
 
             const now = getAdjustedDate();
-            const currentMinOfDay = now.getHours() * 60 + now.getMinutes();
+            const currentMinStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
 
             FULL_PROTOCOL_SCHEDULE.forEach(block => {
-                const [sH, sM] = block.start.split(':').map(Number);
-                const [eH, eM] = block.end.split(':').map(Number);
-                const startMins = sH * 60 + sM;
-                const endMins = eH * 60 + eM;
-
-                const isActive = (currentMinOfDay >= startMins && currentMinOfDay < endMins);
-                const isCompleted = state.daily_logs.completed_blocks.includes(block.id);
+                const isCurrent = currentMinStr >= block.start && currentMinStr < block.end;
+                const isLogged = state.daily_logs.completed_blocks.includes(block.id);
+                const stateKey = `${state.currentDateStr}_${block.id}`;
                 
                 // Subject resolution (check if swapped to Python)
                 let blockName = block.name;
-                let isLogicTarget = block.id.startsWith('sql_');
+                let swapBtnHtml = "";
+                let isLogicTarget = block.id.startsWith('sql_') || block.key === 'logic';
+
                 if (isLogicTarget) {
-                    const swappedKey = `${state.currentDateStr}_${block.id}`;
-                    const targetSub = state.user_settings.swapped_logic_subjects[swappedKey] || 'SQL';
-                    blockName = blockName.replace('SQL', targetSub);
+                    const chosen = state.user_settings.swapped_logic_subjects[stateKey] || 'SQL';
+                    blockName = chosen === 'SQL' ? 'SQL Block (Deep Logic)' : 'Python Block (Applied Engineering)';
+                    swapBtnHtml = `<button onclick="swapSubject('${block.id}')" class="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded border border-slate-700 hover:border-nordic-accent transition">⚡ Swap to ${chosen === 'SQL' ? 'Python' : 'SQL'}</button>`;
                 }
 
                 // Tailwind styles
-                let borderStyle = "border-slate-800 bg-nordic-900/40";
-                let highlightBar = "w-1 bg-slate-800";
-                if (isActive) {
-                    borderStyle = "border-nordic-active/50 bg-nordic-active/10 shadow-md";
-                    highlightBar = "w-1 bg-nordic-active";
-                } else if (isCompleted) {
-                    borderStyle = "border-nordic-accent/30 bg-nordic-accent/5";
-                    highlightBar = "w-1 bg-nordic-accent";
+                let typeColor = "border-l-slate-700";
+                if(block.type === 'study') {
+                    typeColor = block.key === 'german' ? "border-l-nordic-german" : "border-l-nordic-active";
+                } else if(block.format === 'Guilt-Free') {
+                    typeColor = "border-l-nordic-warning";
                 }
 
+                let containerBg = isCurrent ? "bg-slate-800/40 border-slate-700 shadow-md ring-1 ring-slate-700/50" : "bg-nordic-950/40 border-slate-900";
+                if(isLogged) containerBg = "bg-nordic-900/30 border-slate-900 opacity-60";
+
                 const blockItem = document.createElement('div');
-                blockItem.className = `flex gap-3 border rounded-xl p-3 transition ${borderStyle}`;
+                blockItem.className = `p-3 rounded-xl border-l-4 ${typeColor} ${containerBg} border flex items-start justify-between gap-3 transition`;
                 blockItem.innerHTML = `
-                    <div class="${highlightBar} rounded-full"></div>
-                    <div class="flex-grow">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs text-slate-400 font-bold">${block.start} - ${block.end}</span>
-                            <div class="flex items-center gap-1.5">
-                                ${isLogicTarget ? `
-                                    <button onclick="swapSubject('${block.id}')" class="text-[10px] bg-nordic-800 hover:bg-slate-700 px-2 py-0.5 rounded border border-slate-700 font-semibold text-slate-300" title="Swap subject for this block">
-                                        ⚡ Swap SQL/Py
-                                    </button>
-                                ` : ''}
-                                <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${block.format}</span>
-                            </div>
+                    <div class="space-y-1 flex-grow">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-xs font-bold text-slate-200 tracking-tight">${blockName}</span>
+                            <span class="text-[10px] font-mono bg-nordic-800 text-slate-400 px-1.5 py-0.5 rounded">${block.start} - ${block.end}</span>
+                            ${isCurrent ? '<span class="text-[10px] uppercase font-bold tracking-wider text-nordic-accent bg-nordic-accent/10 px-1.5 py-0.5 rounded animate-pulse">Active Now</span>' : ''}
+                            ${isLogged ? '<span class="text-[10px] uppercase font-bold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">Logged ✓</span>' : ''}
                         </div>
-                        <h4 class="text-sm font-bold text-slate-100 mt-1">${blockName}</h4>
-                        <p class="text-xs text-slate-400 mt-0.5">${block.desc}</p>
+                        <p class="text-[11px] text-slate-400 leading-normal max-w-sm">${block.desc}</p>
+                        <div class="pt-1 flex items-center gap-2">${swapBtnHtml}</div>
                     </div>
-                    <div class="flex flex-col justify-center gap-2">
+                    <div class="flex items-center gap-2 flex-shrink-0 self-center">
                         <!-- Manual toggle action button -->
-                        <button onclick="toggleBlockCompletion('${block.id}')" class="w-8 h-8 rounded-full border ${isCompleted ? 'bg-nordic-accent text-slate-950 border-nordic-accent' : 'border-slate-700 text-slate-500 hover:border-slate-500'} flex items-center justify-center transition">
-                            ${isCompleted ? '✓' : ''}
+                        <button onclick="toggleBlockCompletion('${block.id}')" class="w-8 h-8 rounded-full border ${isLogged ? 'bg-nordic-accent text-slate-950 border-nordic-accent' : 'border-slate-700 text-slate-500 hover:border-slate-500'} flex items-center justify-center transition">
+                            ✓
                         </button>
                         <button onclick="launchBlockToTimer('${block.id}')" class="w-8 h-8 rounded-full border border-slate-700 text-slate-400 hover:border-nordic-active hover:text-nordic-active flex items-center justify-center transition">
                             ⏱️
@@ -602,23 +625,19 @@
         // Handle Active Highlights dynamically
         let lastLoggedActiveId = "";
         function checkActiveBlock(now) {
-            const currentMinOfDay = now.getHours() * 60 + now.getMinutes();
-            let currentBlock = null;
+            const currentMinStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
+            let foundActive = null;
 
-            FULL_PROTOCOL_SCHEDULE.forEach(block => {
-                const [sH, sM] = block.start.split(':').map(Number);
-                const [eH, eM] = block.end.split(':').map(Number);
-                const startMins = sH * 60 + sM;
-                const endMins = eH * 60 + eM;
-
-                if (currentMinOfDay >= startMins && currentMinOfDay < endMins) {
-                    currentBlock = block;
+            for(let block of FULL_PROTOCOL_SCHEDULE) {
+                if(currentMinStr >= block.start && currentMinStr < block.end) {
+                    foundActive = block;
+                    break;
                 }
-            });
+            }
 
-            if (currentBlock && currentBlock.id !== lastLoggedActiveId) {
-                lastLoggedActiveId = currentBlock.id;
-                renderProtocolList(); // update highlight
+            if(foundActive && (!activeBlockRef || activeBlockRef.id !== foundActive.id)) {
+                activeBlockRef = foundActive;
+                setTrackingBlockUI(foundActive);
             }
         }
 
@@ -630,7 +649,7 @@
             } else {
                 state.daily_logs.completed_blocks.push(blockId);
             }
-            saveAndSyncData();
+            saveStateAndSync();
             renderProtocolList();
         }
 
@@ -642,650 +661,560 @@
             const lockoutEl = document.getElementById('lockout-overlay');
             // Past 9:00 PM (21:00) lockout active unless bypassed by Dev Mode overrides
             const isLockoutCondition = (currHour >= 21 || currHour < 5);
-            const isOverrideActive = localStorage.getItem('lockout_override') === 'true';
+            const isOverrideActive = localStorage.getItem(APP_ID + '_override_lockout') === 'true';
 
             if (isLockoutCondition && !isOverrideActive) {
-                lockoutEl.style.display = 'flex';
+                lockoutEl.classList.remove('hidden');
+                lockoutEl.classList.add('flex');
                 // Stop active timers during block enforcement
                 if (timerState.isRunning) {
-                    toggleTimer();
+                    resetTimer();
                 }
             } else {
-                lockoutEl.style.display = 'none';
+                lockoutEl.classList.add('hidden');
+                lockoutEl.classList.remove('flex');
             }
         }
 
         window.overrideLockoutForDebug = function() {
-            localStorage.setItem('lockout_override', 'true');
-            document.getElementById('lockout-overlay').style.display = 'none';
-            showToast("Bypassing Hard Stop Lockout for Debug Session");
+            localStorage.setItem(APP_ID + '_override_lockout', 'true');
+            document.getElementById('lockout-overlay').classList.add('hidden');
+            document.getElementById('lockout-overlay').classList.remove('flex');
+            showToast("Bypassing Hard Stop Lockout for testing.");
         }
 
         // Focus Timer Architecture
         window.launchBlockToTimer = function(blockId) {
             const block = FULL_PROTOCOL_SCHEDULE.find(b => b.id === blockId);
             if (!block) return;
-
-            // Resolve subject name (swappable modules)
-            let parsedName = block.name;
-            let finalSubject = "";
-            if (block.id.startsWith('sql_')) {
-                const swappedKey = `${state.currentDateStr}_${block.id}`;
-                finalSubject = state.user_settings.swapped_logic_subjects[swappedKey] || 'SQL';
-                parsedName = parsedName.replace('SQL', finalSubject);
-            } else if (block.id.startsWith('german_')) {
-                finalSubject = "German";
-            }
-
-            activeBlockRef = {
-                ...block,
-                resolvedSubject: finalSubject,
-                resolvedName: parsedName
-            };
-
-            // Set up configurations
-            document.getElementById('timer-block-title').innerText = parsedName;
-            document.getElementById('timer-block-subtitle').innerText = `${block.format} Protocol`;
-            
-            // Enable interactive buttons
-            document.getElementById('timer-btn-primary').disabled = false;
-            document.getElementById('timer-btn-secondary').disabled = false;
-            document.getElementById('timer-btn-skip').disabled = false;
-
-            // Setup appropriate mode structure
-            if (block.format === 'Pomodoro') {
-                document.getElementById('timer-protocol-badge').innerText = "Pomodoro (50/10)";
-                timerState.mode = "focus";
-                timerState.targetSeconds = 50 * 60; // 50 Minutes focus target
-                timerState.currentSeconds = timerState.targetSeconds;
-                document.getElementById('timer-sub-text').innerText = "Focus State";
-            } else if (block.format === 'Flowtime') {
-                document.getElementById('timer-protocol-badge').innerText = "Flowtime Method";
-                timerState.mode = "flow";
-                timerState.currentSeconds = 0; // Stopwatch (Ascending counts)
-                timerState.targetSeconds = 120 * 60; // Max visual progress bound
-                document.getElementById('timer-sub-text').innerText = "Flow Active";
-            } else {
-                // Recovery/rest periods defaults to manual diffuse countdown
-                document.getElementById('timer-protocol-badge').innerText = "Break Interval";
-                timerState.mode = "break";
-                timerState.targetSeconds = (block.id === 'diffuse_break_1' ? 30 : 10) * 60;
-                timerState.currentSeconds = timerState.targetSeconds;
-                document.getElementById('timer-sub-text').innerText = "Diffuse State";
-            }
-
-            updateTimerVisuals();
-            showToast(`Launched session: ${parsedName}`);
+            activeBlockRef = block;
+            setTrackingBlockUI(block);
+            showToast(`Launched session: ${block.name}`);
         }
 
-        function updateTimerVisuals() {
-            const min = Math.floor(timerState.currentSeconds / 60);
-            const sec = timerState.currentSeconds % 60;
-            document.getElementById('timer-countdown').innerText = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-
-            // Adjust graphical circular path indicator
-            const svgCircle = document.getElementById('timer-svg-circle');
-            let percentage = 0;
-            if (timerState.mode === 'flow') {
-                percentage = Math.min((timerState.currentSeconds / timerState.targetSeconds) * 100, 100);
-            } else {
-                percentage = ((timerState.targetSeconds - timerState.currentSeconds) / timerState.targetSeconds) * 100;
+        function setTrackingBlockUI(block) {
+            const title = document.getElementById('timer-block-title');
+            const sub = document.getElementById('timer-block-subtitle');
+            const badge = document.getElementById('timer-protocol-badge');
+            
+            const stateKey = `${state.currentDateStr}_${block.id}`;
+            let subjectName = block.name;
+            if(block.key === 'logic') {
+                const chosen = state.user_settings.swapped_logic_subjects[stateKey] || 'SQL';
+                subjectName = chosen === 'SQL' ? 'SQL Focus Session' : 'Python Focus Session';
             }
-            const offset = 534 - (534 * percentage) / 100;
-            svgCircle.setAttribute('stroke-dashoffset', offset);
 
-            // Coloring details matching state boundaries
-            if (timerState.mode === 'break') {
-                svgCircle.setAttribute('stroke', '#8B5CF6'); // Purple diffuse
-                document.getElementById('timer-countdown').className = "text-4xl font-extrabold tracking-tight font-mono text-purple-400";
-            } else {
-                svgCircle.setAttribute('stroke', '#10B981'); // Green focused study
-                document.getElementById('timer-countdown').className = "text-4xl font-extrabold tracking-tight font-mono text-slate-100";
+            title.innerText = subjectName;
+            sub.innerText = block.desc;
+            badge.innerText = `${block.format} Protocol`;
+
+            if(timerState.mode === 'idle' || !timerState.isRunning) {
+                if(block.format === 'Pomodoro') {
+                    setupTimerParameters(50 * 60, "focus");
+                } else if(block.format === 'Flowtime' || block.format === 'Diffuse Mode' || block.format === 'Recovery' || block.format === 'Guilt-Free') {
+                    setupTimerParameters(0, "flow");
+                }
+                document.getElementById('timer-btn-primary').disabled = false;
+                document.getElementById('timer-btn-secondary').disabled = false;
+                document.getElementById('timer-btn-skip').disabled = false;
+            }
+        }
+
+        function setupTimerParameters(seconds, mode) {
+            timerState.mode = mode;
+            timerState.currentSeconds = seconds;
+            timerState.targetSeconds = seconds;
+            timerState.elapsedSeconds = 0;
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            const countdownEl = document.getElementById('timer-countdown');
+            const subTextEl = document.getElementById('timer-sub-text');
+            const svgCircle = document.getElementById('timer-svg-circle');
+            
+            let displaySecs = timerState.currentSeconds;
+            let mins = Math.floor(displaySecs / 60);
+            let secs = displaySecs % 60;
+            countdownEl.innerText = String(mins).padStart(2, '0') + ":" + String(secs).padStart(2, '0');
+
+            if(timerState.mode === 'focus') {
+                subTextEl.innerText = "Focus Time";
+                subTextEl.className = "text-xs uppercase font-semibold text-nordic-accent mt-1";
+                const fraction = timerState.currentSeconds / timerState.targetSeconds;
+                svgCircle.setAttribute('stroke-dashoffset', 534 * (1 - fraction));
+                svgCircle.setAttribute('stroke', '#10B981');
+            } else if(timerState.mode === 'break') {
+                subTextEl.innerText = "Diffuse Break";
+                subTextEl.className = "text-xs uppercase font-semibold text-nordic-active mt-1";
+                const fraction = timerState.currentSeconds / timerState.targetSeconds;
+                svgCircle.setAttribute('stroke-dashoffset', 534 * (1 - fraction));
+                svgCircle.setAttribute('stroke', '#3B82F6');
+                document.getElementById('diffuse-countdown').innerText = countdownEl.innerText;
+            } else if(timerState.mode === 'flow') {
+                subTextEl.innerText = "Flow Active";
+                subTextEl.className = "text-xs uppercase font-semibold text-violet-400 mt-1";
+                svgCircle.setAttribute('stroke-dashoffset', 0);
+                svgCircle.setAttribute('stroke', '#8B5CF6');
             }
         }
 
         // Start/Pause execution loops
         window.toggleTimer = function() {
             const btn = document.getElementById('timer-btn-primary');
-            if (timerState.isRunning) {
-                // Handle Pause / Complete Flowtime transition states
+            if(timerState.isRunning) {
                 clearInterval(timerState.intervalId);
                 timerState.isRunning = false;
-                btn.innerText = "Resume";
-                btn.className = "flex-grow max-w-[140px] px-5 py-3 bg-nordic-accent text-slate-950 font-bold rounded-xl transition";
-                
-                // If exiting flowtime, calculate proportional recovery period!
-                if (timerState.mode === "flow" && timerState.currentSeconds > 60) {
-                    calculateFlowtimeRest();
-                }
+                btn.innerText = "Resume Focus";
+                btn.className = "flex-grow max-w-[140px] px-5 py-3 bg-nordic-accent text-slate-950 font-bold rounded-xl shadow-lg hover:opacity-90 transition";
             } else {
-                // Initiate intervals
                 timerState.isRunning = true;
-                btn.innerText = "Pause";
-                btn.className = "flex-grow max-w-[140px] px-5 py-3 bg-yellow-500 text-slate-950 font-bold rounded-xl transition";
+                btn.innerText = "Pause Focus";
+                btn.className = "flex-grow max-w-[140px] px-5 py-3 bg-nordic-active text-white font-bold rounded-xl shadow-lg hover:opacity-90 transition";
                 
                 timerState.intervalId = setInterval(() => {
-                    if (timerState.mode === "flow") {
-                        // Stopwatch counting upwards
-                        timerState.currentSeconds++;
-                        updateTimerVisuals();
-                    } else {
-                        // Regular down counts
-                        timerState.currentSeconds--;
-                        updateTimerVisuals();
-                        if (timerState.currentSeconds <= 0) {
-                            handleTimerIntervalComplete();
+                    if(timerState.mode === 'focus' || timerState.mode === 'break') {
+                        if(timerState.currentSeconds > 0) {
+                            timerState.currentSeconds--;
+                            timerState.elapsedSeconds++;
+                        } else {
+                            triggerIntervalAlert();
                         }
+                    } else if(timerState.mode === 'flow') {
+                        timerState.currentSeconds++;
+                        timerState.elapsedSeconds++;
                     }
+                    updateTimerDisplay();
                 }, 1000);
             }
         }
 
         window.resetTimer = function() {
-            if (timerState.isRunning) {
-                toggleTimer();
-            }
-            if (timerState.mode === "flow") {
-                timerState.currentSeconds = 0;
-            } else {
-                timerState.currentSeconds = timerState.targetSeconds;
-            }
-            updateTimerVisuals();
-            showToast("Timer has been reset");
-        }
-
-        // Custom Sound synthesis using Web Audio API (Guarantees zero-dependency alerts)
-        window.playTestChime = function() {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                
-                // Zen Chime Waveform Layers
-                const playTone = (freq, duration, delay) => {
-                    setTimeout(() => {
-                        const osc = audioCtx.createOscillator();
-                        const gainNode = audioCtx.createGain();
-                        
-                        osc.type = 'sine';
-                        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-                        
-                        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-                        
-                        osc.connect(gainNode);
-                        gainNode.connect(audioCtx.destination);
-                        
-                        osc.start();
-                        osc.stop(audioCtx.currentTime + duration);
-                    }, delay);
-                };
-
-                // Harmonic Chime notes
-                playTone(523.25, 2.5, 0);   // C5
-                playTone(659.25, 2.0, 150); // E5
-                playTone(783.99, 1.5, 300); // G5
-                playTone(1046.50, 1.0, 450); // C6
-            } catch (e) {
-                console.error("Audio Synthesis not supported or allowed by user permissions", e);
-            }
-        }
-
-        function handleTimerIntervalComplete() {
             clearInterval(timerState.intervalId);
             timerState.isRunning = false;
-            playTestChime();
-
-            const primaryBtn = document.getElementById('timer-btn-primary');
-            primaryBtn.innerText = "Start Focus";
-            primaryBtn.className = "flex-grow max-w-[140px] px-5 py-3 bg-nordic-accent text-slate-950 font-bold rounded-xl transition";
-
-            if (timerState.mode === "focus") {
-                // Completed Pomodoro focus. Award minutes, launch break
-                if (activeBlockRef) {
-                    addFocusMinutes(activeBlockRef.resolvedSubject, 50);
-                    // Automatically auto-complete matching timetable card
-                    if (!state.daily_logs.completed_blocks.includes(activeBlockRef.id)) {
-                        state.daily_logs.completed_blocks.push(activeBlockRef.id);
-                    }
-                }
-                
-                // Show Diffuse Break view overlay
-                launchDiffuseBreakScreen(10);
-                timerState.mode = "break";
-                timerState.targetSeconds = 10 * 60;
-                timerState.currentSeconds = timerState.targetSeconds;
-                document.getElementById('timer-protocol-badge').innerText = "Diffuse Mode Break (10m)";
-                document.getElementById('timer-sub-text').innerText = "Diffuse State";
-                updateTimerVisuals();
-            } else if (timerState.mode === "break") {
-                // Break ended. Return to focus setup
-                closeDiffuseOverlay();
-                showToast("Break concluded! Back to active focus.", "success");
-                if (activeBlockRef) {
-                    launchBlockToTimer(activeBlockRef.id);
-                }
-            }
-            saveAndSyncData();
-            renderProtocolList();
+            timerState.mode = "idle";
+            if(activeBlockRef) setTrackingBlockUI(activeBlockRef);
+            document.getElementById('timer-btn-primary').innerText = "Start Focus";
+            document.getElementById('timer-btn-primary').className = "flex-grow max-w-[140px] px-5 py-3 bg-nordic-accent text-slate-950 font-bold rounded-xl shadow-lg hover:opacity-90 transition";
         }
 
-        // Skip timer button action
         window.skipTimerInterval = function() {
-            if (timerState.isRunning) {
-                toggleTimer();
-            }
-            if (timerState.mode === "break" || document.getElementById('diffuse-overlay').style.display === 'flex') {
-                closeDiffuseOverlay();
-                showToast("Break skipped manually.");
-                if (activeBlockRef) {
-                    launchBlockToTimer(activeBlockRef.id);
-                }
-            } else {
-                // Manually transition study periods to completion
-                if (timerState.mode === "flow") {
-                    calculateFlowtimeRest();
-                } else {
-                    handleTimerIntervalComplete();
-                }
-            }
+            triggerIntervalAlert(true);
         }
 
-        // Flowtime math break formulas
-        function calculateFlowtimeRest() {
-            const workedSecs = timerState.currentSeconds;
-            const workedMins = Math.floor(workedSecs / 60);
-            
-            // Add focus hours
-            if (activeBlockRef && workedMins > 0) {
-                addFocusMinutes(activeBlockRef.resolvedSubject, workedMins);
-                if (!state.daily_logs.completed_blocks.includes(activeBlockRef.id)) {
-                    state.daily_logs.completed_blocks.push(activeBlockRef.id);
-                }
-            }
-
-            // Flowtime protocol calculates breaks proportionally (1 min break / 5 min focus)
-            const breakMins = Math.max(Math.round(workedMins / 5), 1);
-            
-            timerState.currentSeconds = 0;
-            saveAndSyncData();
-            renderProtocolList();
-
-            // Transition directly into calculated diffuse mode
-            launchDiffuseBreakScreen(breakMins);
-        }
-
-        function addFocusMinutes(subject, mins) {
-            if (!subject) return;
-            const key = subject.toLowerCase();
-            if (state.user_settings.saved_focus_mins[key] !== undefined) {
-                state.user_settings.saved_focus_mins[key] += mins;
-            } else {
-                state.user_settings.saved_focus_mins[key] = mins;
-            }
-            updateStatsUI();
-        }
-
-        // Visual Overlay handlers for screen-free recovery forcing
-        function launchDiffuseBreakScreen(durationMins) {
-            const diffuseOverlay = document.getElementById('diffuse-overlay');
-            diffuseOverlay.classList.remove('hidden');
-            diffuseOverlay.style.display = 'flex';
-
-            let remainingSecs = durationMins * 60;
-            const countEl = document.getElementById('diffuse-countdown');
-            
-            const renderBreakText = () => {
-                const m = Math.floor(remainingSecs / 60);
-                const s = remainingSecs % 60;
-                countEl.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-            };
-            
-            renderBreakText();
-
-            // Set up clean micro countdown context loop
-            timerState.mode = "break";
-            timerState.intervalId = setInterval(() => {
-                remainingSecs--;
-                renderBreakText();
-                if (remainingSecs <= 0) {
-                    clearInterval(timerState.intervalId);
-                    closeDiffuseOverlay();
-                    playTestChime();
-                    showToast("Diffuse Break complete. Return to system dashboard!");
-                }
-            }, 1000);
-        }
-
-        function closeDiffuseOverlay() {
+        function triggerIntervalAlert(isManualSkip = false) {
+            playChimeSound();
             clearInterval(timerState.intervalId);
-            document.getElementById('diffuse-overlay').style.display = 'none';
-            document.getElementById('diffuse-overlay').classList.add('hidden');
+            timerState.isRunning = false;
+            document.getElementById('timer-btn-primary').innerText = "Start Focus";
+            document.getElementById('timer-btn-primary').className = "flex-grow max-w-[140px] px-5 py-3 bg-nordic-accent text-slate-950 font-bold rounded-xl shadow-lg hover:opacity-90 transition";
+
+            if(timerState.mode === 'focus') {
+                logCompletedSessionData(timerState.elapsedSeconds);
+                showToast("Focus interval complete. Launching diffuse mode tracking rules.", "success");
+                setupTimerParameters(10 * 60, "break");
+                openDiffuseOverlay(true);
+            } else if(timerState.mode === 'break') {
+                showToast("Break concluded. Returning to standard tracking stack.", "info");
+                openDiffuseOverlay(false);
+                resetTimer();
+            } else if(timerState.mode === 'flow') {
+                logCompletedSessionData(timerState.elapsedSeconds);
+                showToast("Flowtime interval committed to database.", "success");
+                resetTimer();
+                openDiffuseOverlay(false);
+            }
+        }
+
+        function logCompletedSessionData(seconds) {
+            if(!activeBlockRef || seconds < 10) return;
+            const minutesTracked = Math.round(seconds / 60);
+            if(minutesTracked === 0) return;
+
+            let subjectKey = activeBlockRef.key;
+            if(subjectKey === 'logic') {
+                const stateKey = `${state.currentDateStr}_${activeBlockRef.id}`;
+                subjectKey = (state.user_settings.swapped_logic_subjects[stateKey] || 'SQL').toLowerCase();
+            }
+
+            if(subjectKey && state.user_settings.saved_focus_mins[subjectKey] !== undefined) {
+                state.user_settings.saved_focus_mins[subjectKey] += minutesTracked;
+            }
+
+            if(!state.daily_logs.completed_blocks.includes(activeBlockRef.id)) {
+                state.daily_logs.completed_blocks.push(activeBlockRef.id);
+            }
+
+            saveStateAndSync();
+            updateStatsUI();
+            renderProtocolList();
+        }
+
+        function openDiffuseOverlay(show) {
+            const overlay = document.getElementById('diffuse-overlay');
+            if(show) {
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
+                if(timerState.mode === 'break') {
+                    timerState.isRunning = true;
+                    timerState.intervalId = setInterval(() => {
+                        if(timerState.currentSeconds > 0) {
+                            timerState.currentSeconds--;
+                            timerState.elapsedSeconds++;
+                            updateTimerDisplay();
+                        } else {
+                            triggerIntervalAlert();
+                        }
+                    }, 1000);
+                }
+            } else {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }
+        }
+
+        // Custom Chime Synth API
+        function playChimeSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5 Clean frequency
+                osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.15); // Slide upward to G5
+                
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.start();
+                osc.stop(ctx.currentTime + 1.2);
+            } catch(e) {
+                console.log("Audio pipeline blocked by user preferences.");
+            }
+        }
+
+        window.playTestChime = function() {
+            playChimeSound();
+            showToast("Zen High-frequency acoustic wave generated successfully.", "success");
         }
 
         // Render Burnout Checklist items
-        function renderChecklist() {
+        window.renderChecklist = function() {
             const container = document.getElementById('checklist-elements');
             container.innerHTML = '';
 
-            let checkedCount = 0;
+            let completedCount = 0;
 
             CHECKLIST_KEYS.forEach(item => {
                 const isChecked = state.daily_logs.checklist_status[item.id] || false;
-                if (isChecked) checkedCount++;
+                if (isChecked) completedCount++;
 
                 const row = document.createElement('label');
-                row.className = `flex items-start gap-3 p-3 rounded-xl border transition cursor-pointer select-none ${isChecked ? 'bg-nordic-accent/5 border-nordic-accent/30 text-slate-100' : 'bg-nordic-950/40 border-slate-800 text-slate-400 hover:border-slate-700'}`;
+                row.className = `flex items-start gap-3 p-3 bg-nordic-950/40 border border-slate-900 rounded-xl cursor-pointer hover:bg-slate-800/20 transition group select-none`;
                 row.innerHTML = `
-                    <div class="flex items-center h-5">
-                        <input type="checkbox" onchange="toggleChecklistItem('${item.id}')" ${isChecked ? 'checked' : ''} class="w-4 h-4 rounded text-nordic-accent focus:ring-nordic-accent border-slate-700 bg-nordic-950 cursor-pointer">
-                    </div>
-                    <span class="text-xs font-medium leading-relaxed">${item.text}</span>
+                    <input type="checkbox" onchange="toggleCheckItem('${item.id}')" ${isChecked ? 'checked' : ''} class="mt-0.5 w-4 h-4 rounded border-slate-700 bg-nordic-900 text-nordic-accent focus:ring-0 focus:ring-offset-0 transition cursor-pointer accent-nordic-accent">
+                    <span class="text-xs font-medium text-slate-300 leading-normal group-hover:text-slate-200 transition ${isChecked ? 'line-through text-slate-500 group-hover:text-slate-500' : ''}">${item.text}</span>
                 `;
                 container.appendChild(row);
             });
 
-            document.getElementById('checklist-ratio').innerText = `${checkedCount}/5 Verified`;
+            document.getElementById('checklist-ratio').innerText = `${completedCount}/5 Verified`;
             
-            // Validate streak update criteria (Minimum 4 checks out of 5 required)
-            const subMsg = document.getElementById('submission-status-msg');
             const submitBtn = document.getElementById('btn-complete-day');
+            const subMsg = document.getElementById('submission-status-msg');
 
             if (state.daily_logs.day_completed) {
                 subMsg.innerText = "✓ Today locked in successfully!";
                 subMsg.className = "text-sm font-extrabold text-nordic-accent mt-0.5";
                 submitBtn.disabled = true;
-                submitBtn.innerText = "Day Complete";
-            } else if (checkedCount >= 4) {
-                subMsg.innerText = "Ready to solidify active streak!";
-                subMsg.className = "text-sm font-extrabold text-emerald-400 mt-0.5";
+                submitBtn.innerText = "Day Protocol Completed";
+            } else if (completedCount >= 4) {
+                subMsg.innerText = "Minimum metrics secured!";
+                subMsg.className = "text-sm font-extrabold text-nordic-accent mt-0.5";
                 submitBtn.disabled = false;
                 submitBtn.innerText = "Lock In Today's Streak";
             } else {
-                subMsg.innerText = "Requires 4 checklist ticks";
+                subMsg.innerText = "Checklist requirements not met";
                 subMsg.className = "text-sm font-extrabold text-slate-400 mt-0.5";
                 submitBtn.disabled = true;
                 submitBtn.innerText = "Complete Requirements";
             }
         }
 
-        window.toggleChecklistItem = function(id) {
+        window.toggleCheckItem = function(id) {
             state.daily_logs.checklist_status[id] = !state.daily_logs.checklist_status[id];
-            saveAndSyncData();
+            saveStateAndSync();
             renderChecklist();
         }
 
         // Finalize Day & Lock in Streak
         window.submitDayComplete = function() {
-            if (state.daily_logs.day_completed) return;
+            let completedCount = 0;
+            CHECKLIST_KEYS.forEach(item => {
+                if(state.daily_logs.checklist_status[item.id]) completedCount++;
+            });
 
-            // Increment streak counters
-            state.user_settings.current_streak++;
-            if (state.user_settings.current_streak > state.user_settings.longest_streak) {
+            if(completedCount < 4) {
+                showToast("Compliance failure. Save requires 4 of 5 metrics.", "error");
+                return;
+            }
+
+            state.daily_logs.day_completed = true;
+            state.user_settings.current_streak += 1;
+            if(state.user_settings.current_streak > state.user_settings.longest_streak) {
                 state.user_settings.longest_streak = state.user_settings.current_streak;
             }
             
-            state.daily_logs.day_completed = true;
-            
-            saveAndSyncData();
+            saveStateAndSync();
             renderChecklist();
             updateStatsUI();
 
-            showToast("Congratulations! Today's study milestones are safely written to your streak profile! 🔥", "success");
+            showToast("Congratulations! Today's study milestones are safely locked to your database! 🔥", "success");
         }
 
         // SVG Interactive charts & metrics parser
         function updateStatsUI() {
             document.getElementById('streak-counter').innerText = `${state.user_settings.current_streak} Days`;
-            
+            document.getElementById('stat-longest-streak').innerText = `🔥 ${state.user_settings.longest_streak} Days`;
+
             const gMin = state.user_settings.saved_focus_mins.german || 0;
             const sMin = state.user_settings.saved_focus_mins.sql || 0;
             const pMin = state.user_settings.saved_focus_mins.python || 0;
             const tot = gMin + sMin + pMin;
 
             document.getElementById('stat-total-minutes').innerText = `${tot} Mins`;
-            document.getElementById('stat-longest-streak').innerText = `🔥 ${state.user_settings.longest_streak} Days`;
-
-            // Percentage distributions
-            const logicMins = sMin + pMin;
-            const langMins = gMin;
-            const ratioTot = logicMins + langMins;
-            
-            if (ratioTot > 0) {
-                const logicPct = Math.round((logicMins / ratioTot) * 100);
-                const langPct = Math.round((langMins / ratioTot) * 100);
-                document.getElementById('stat-ratio-lang').innerText = `Language ${langPct}%`;
-                document.getElementById('stat-ratio-logic').innerText = `Logic ${logicPct}%`;
-            } else {
-                document.getElementById('stat-ratio-lang').innerText = `Language 0%`;
-                document.getElementById('stat-ratio-logic').innerText = `Logic 0%`;
-            }
-
-            // Numeric legends
             document.getElementById('chart-min-german').innerText = `${gMin}m`;
             document.getElementById('chart-min-sql').innerText = `${sMin}m`;
             document.getElementById('chart-min-python').innerText = `${pMin}m`;
 
             // Adjust sizing bar percentages safely
             if (tot > 0) {
+                const langPct = Math.round((gMin / tot) * 100);
+                const logicPct = Math.round(((sMin + pMin) / tot) * 100);
+                document.getElementById('stat-ratio-lang').innerText = `Language ${langPct}%`;
+                document.getElementById('stat-ratio-logic').innerText = `Logic ${logicPct}%`;
+
                 document.getElementById('chart-bar-german').style.width = `${(gMin / tot) * 100}%`;
                 document.getElementById('chart-bar-sql').style.width = `${(sMin / tot) * 100}%`;
                 document.getElementById('chart-bar-python').style.width = `${(pMin / tot) * 100}%`;
             } else {
+                document.getElementById('stat-ratio-lang').innerText = `Language 0%`;
+                document.getElementById('stat-ratio-logic').innerText = `Logic 0%`;
                 document.getElementById('chart-bar-german').style.width = '0%';
                 document.getElementById('chart-bar-sql').style.width = '0%';
                 document.getElementById('chart-bar-python').style.width = '0%';
             }
 
-            drawDynamicChartPie(gMin, sMin, pMin);
+            renderDynamicPieChart(gMin, sMin, pMin, tot);
         }
 
-        // Draw basic single-file vector SVG donut graph
-        function drawDynamicChartPie(german, sql, python) {
+        function renderDynamicPieChart(g, s, p, total) {
             const svg = document.getElementById('stats-pie-svg');
-            svg.innerHTML = '';
-            
-            const total = german + sql + python;
-            if (total === 0) {
-                // Render gray circle placeholders
-                svg.innerHTML = `<circle cx="56" cy="56" r="45" fill="transparent" stroke="#1F2937" stroke-width="15" />`;
+            svg.innerHTML = "";
+            if(total === 0) {
+                svg.innerHTML = `<circle cx="56" cy="56" r="45" fill="transparent" stroke="#1F2937" stroke-width="14"/>`;
                 return;
             }
 
-            const data = [
-                { val: german, color: '#8B5CF6' }, // Violet
-                { val: sql, color: '#10B981' },    // Emerald
-                { val: python, color: '#3B82F6' }   // Active blue
-            ].filter(d => d.val > 0);
+            const slices = [
+                { val: g, color: '#8B5CF6' }, // Violet German
+                { val: s, color: '#10B981' }, // Emerald SQL
+                { val: p, color: '#3B82F6' }  // Blue Python
+            ];
 
-            let accumulatedAngle = 0;
-            data.forEach(item => {
-                const percentage = item.val / total;
-                const angle = percentage * 360;
+            let accumulatedPercent = 0;
+            slices.forEach(slice => {
+                if(slice.val === 0) return;
+                const pct = slice.val / total;
+                const strokeDash = pct * 283;
+                const offset = 283 - strokeDash + (accumulatedPercent * 283);
                 
-                // SVG arc coordinate formulas
-                const x1 = 56 + 45 * Math.cos((accumulatedAngle * Math.PI) / 180);
-                const y1 = 56 + 45 * Math.sin((accumulatedAngle * Math.PI) / 180);
-                
-                accumulatedAngle += angle;
-                
-                const x2 = 56 + 45 * Math.cos((accumulatedAngle * Math.PI) / 180);
-                const y2 = 56 + 45 * Math.sin((accumulatedAngle * Math.PI) / 180);
-                
-                const largeArcFlag = angle > 180 ? 1 : 0;
-                
-                const pathData = `
-                    M ${x1} ${y1}
-                    A 45 45 0 ${largeArcFlag} 1 ${x2} ${y2}
+                const circleHtml = `
+                    <circle cx="56" cy="56" r="45" fill="transparent" stroke="${slice.color}" stroke-width="14"
+                            stroke-dasharray="283" stroke-dashoffset="${offset}" stroke-linecap="round" class="transition-all duration-500"/>
                 `;
-                
-                const pathElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                pathElement.setAttribute("d", pathData);
-                pathElement.setAttribute("fill", "transparent");
-                pathElement.setAttribute("stroke", item.color);
-                pathElement.setAttribute("stroke-width", "14");
-                pathElement.setAttribute("stroke-linecap", "round");
-                
-                svg.appendChild(pathElement);
+                svg.innerHTML += circleHtml;
+                accumulatedPercent -= pct;
             });
         }
 
         // Persistence Management (Local vs Cloud-Sync)
         function loadLocalState() {
-            const settingsData = localStorage.getItem(`${APP_ID}_settings`);
-            if (settingsData) {
-                state.user_settings = JSON.parse(settingsData);
-            }
-
-            const logData = localStorage.getItem(`${APP_ID}_log_${state.currentDateStr}`);
-            if (logData) {
-                state.daily_logs = JSON.parse(logData);
-            } else {
-                // Initialize clean data structures for brand new day entries
-                state.daily_logs = {
-                    completed_blocks: [],
-                    checklist_status: {
-                        hard_stop: false,
-                        screen_free_breaks: false,
-                        guilt_free_leisure: false,
-                        hydration_glucose: false,
-                        eighty_percent_acceptance: false
-                    },
-                    day_completed: false
-                };
+            const stored = localStorage.getItem(APP_ID + '_state');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if(parsed.user_settings) state.user_settings = parsed.user_settings;
+                const cachedLogs = localStorage.getItem(APP_ID + '_logs_' + state.currentDateStr);
+                if(cachedLogs) state.daily_logs = JSON.parse(cachedLogs);
             }
         }
 
-        function saveAndSyncData() {
-            // Write core states directly to offline memory cache first (NFR-5 Robust persistence guard)
-            localStorage.setItem(`${APP_ID}_settings`, JSON.stringify(state.user_settings));
-            localStorage.setItem(`${APP_ID}_log_${state.currentDateStr}`, JSON.stringify(state.daily_logs));
+        function saveStateToLocal() {
+            localStorage.setItem(APP_ID + '_state', JSON.stringify({ user_settings: state.user_settings }));
+            localStorage.setItem(APP_ID + '_logs_' + state.currentDateStr, JSON.stringify(state.daily_logs));
+        }
 
-            // Push changes dynamically to Firestore backend if initialized (RULE 3 checks)
-            if (isFirebaseConnected && firebaseDb) {
-                const user = firebaseAuth.currentUser;
-                if (!user) return;
-
-                // RULE 1 Strict Path bindings
-                const userSettingsDocRef = doc(firebaseDb, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'user_settings');
-                const dailyLogDocRef = doc(firebaseDb, 'artifacts', APP_ID, 'users', user.uid, 'daily_logs', state.currentDateStr);
-
-                setDoc(userSettingsDocRef, state.user_settings, { merge: true })
-                    .catch(err => console.error("Cloud synchronization failure:", err));
-                setDoc(dailyLogDocRef, state.daily_logs, { merge: true })
-                    .catch(err => console.error("Cloud synchronization failure:", err));
+        async function saveStateAndSync() {
+            saveStateToLocal();
+            if (isFirebaseConnected && firebaseAuth.currentUser) {
+                const uid = firebaseAuth.currentUser.uid;
+                try {
+                    // Rule 1 Compliant user setting collection paths
+                    const settingsRef = doc(firebaseDb, "artifacts", "neuroflow-tracker", "users", uid, "settings", "user_settings");
+                    await setDoc(settingsRef, state.user_settings, { merge: true });
+                    
+                    const logsRef = doc(firebaseDb, "artifacts", "neuroflow-tracker", "users", uid, "daily_logs", state.currentDateStr);
+                    await setDoc(logsRef, state.daily_logs, { merge: true });
+                } catch(e) {
+                    console.error("Cloud Sync write failure: ", e);
+                }
             }
         }
 
-        // Firebase Cloud Initialization Hub
+        // Firebase Initialization Engine
         function initializeFirebaseFromLocal() {
-            const storedConfig = localStorage.getItem(`${APP_ID}_firebase_config`);
-            if (!storedConfig) return;
+            const savedConfig = localStorage.getItem(APP_ID + '_firebase_config');
+            if(savedConfig) {
+                document.getElementById('firebase-config-input').value = savedConfig;
+                try {
+                    const parsed = JSON.parse(savedConfig);
+                    initFirebase(parsed);
+                } catch(e) {
+                    showToast("Cached configuration template parsing failure.", "error");
+                }
+            }
+        }
 
-            document.getElementById('firebase-config-input').value = storedConfig;
-            setupFirebaseInstance(JSON.parse(storedConfig));
+        async function initFirebase(config) {
+            try {
+                if (getApps().length === 0) {
+                    firebaseApp = initializeApp(config);
+                } else {
+                    firebaseApp = getApp();
+                }
+                firebaseAuth = getAuth(firebaseApp);
+                firebaseDb = getFirestore(firebaseApp);
+
+                const email = document.getElementById('auth-email-input').value.trim();
+                const pass = document.getElementById('auth-pass-input').value.trim();
+
+                if (email && pass) {
+                    updateSyncBadge(false, "Connecting to cloud...");
+                    if (authMode === 'register') {
+                        await createUserWithEmailAndPassword(firebaseAuth, email, pass);
+                        showToast("Account successfully created & registered!", "success");
+                    } else {
+                        await signInWithEmailAndPassword(firebaseAuth, email, pass);
+                        showToast("Successfully logged in!", "success");
+                    }
+                    // Clear out inputs for safety
+                    document.getElementById('auth-email-input').value = "";
+                    document.getElementById('auth-pass-input').value = "";
+                }
+
+                // Setup listener to monitor updates securely
+                firebaseAuth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        isFirebaseConnected = true;
+                        updateSyncBadge(true, `Synced Profile`);
+                        setupFirebaseRealtimeSync(user.uid);
+                    } else {
+                        isFirebaseConnected = false;
+                        updateSyncBadge(false, "Offline Mode");
+                    }
+                });
+            } catch(e) {
+                console.error(e);
+                updateSyncBadge(false, "Connection Failed");
+                showToast(`Firebase mismatch: ${e.message}`, "error");
+            }
+        }
+
+        function setupFirebaseRealtimeSync(uid) {
+            if(unsubscribeSettings) unsubscribeSettings();
+            if(unsubscribeLogs) unsubscribeLogs();
+
+            // Direct simple document listeners (Rule 2 query compliance)
+            const settingsRef = doc(firebaseDb, "artifacts", "neuroflow-tracker", "users", uid, "settings", "user_settings");
+            unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
+                if(docSnap.exists()) {
+                    state.user_settings = docSnap.data();
+                    saveStateToLocal();
+                    updateStatsUI();
+                    renderProtocolList();
+                }
+            }, (err) => console.log("Silent ignore setting sync errors", err));
+
+            const logsRef = doc(firebaseDb, "artifacts", "neuroflow-tracker", "users", uid, "daily_logs", state.currentDateStr);
+            unsubscribeLogs = onSnapshot(logsRef, (docSnap) => {
+                if(docSnap.exists()) {
+                    state.daily_logs = docSnap.data();
+                    saveStateToLocal();
+                    renderChecklist();
+                    updateStatsUI();
+                    renderProtocolList();
+                }
+            }, (err) => console.log("Silent ignore log sync errors", err));
         }
 
         window.saveFirebaseSettings = function() {
-            const rawConfigText = document.getElementById('firebase-config-input').value;
-            if (!rawConfigText.trim()) return;
+            const rawJson = document.getElementById('firebase-config-input').value.trim();
+            const email = document.getElementById('auth-email-input').value.trim();
+            const pass = document.getElementById('auth-pass-input').value.trim();
 
+            if(!rawJson) {
+                showToast("Please enter a valid configuration template.", "error");
+                return;
+            }
             try {
-                const parsedConfig = JSON.parse(rawConfigText);
-                localStorage.setItem(`${APP_ID}_firebase_config`, JSON.stringify(parsedConfig));
-                
-                setupFirebaseInstance(parsedConfig);
+                const parsed = JSON.parse(rawJson);
+                localStorage.setItem(APP_ID + '_firebase_config', rawJson);
+                initFirebase(parsed);
                 closeSettingsModal();
-                showToast("Firebase Cloud Services initialized!", "success");
-            } catch (e) {
-                showToast("Invalid Configuration JSON structure!", "error");
+            } catch(e) {
+                showToast("Invalid JSON syntax schema detected.", "error");
             }
         }
 
         window.disconnectFirebase = function() {
-            localStorage.removeItem(`${APP_ID}_firebase_config`);
-            document.getElementById('firebase-config-input').value = '';
-            
-            if (syncStatusUnsubscribe) {
-                syncStatusUnsubscribe();
-            }
-
+            if (firebaseAuth) signOut(firebaseAuth);
+            localStorage.removeItem(APP_ID + '_firebase_config');
+            document.getElementById('firebase-config-input').value = "";
+            document.getElementById('auth-email-input').value = "";
+            document.getElementById('auth-pass-input').value = "";
             isFirebaseConnected = false;
-            firebaseApp = null;
-            firebaseAuth = null;
-            firebaseDb = null;
-
-            updateSyncStatusIndicator(false);
-            showToast("Cloud sync services detached. Operating in Local Mode.");
+            if(unsubscribeSettings) unsubscribeSettings();
+            if(unsubscribeLogs) unsubscribeLogs();
+            updateSyncBadge(false, "Offline Mode");
             closeSettingsModal();
+            showToast("Cloud profile unlinked.", "info");
         }
 
-        async function setupFirebaseInstance(config) {
-            try {
-                // Initialize instances safely
-                firebaseApp = initializeApp(config);
-                firebaseAuth = getAuth(firebaseApp);
-                firebaseDb = getFirestore(firebaseApp);
-
-                updateSyncStatusIndicator(false, "Connecting to Cloud...");
-
-                // Execute Anonymous Authenticate to satisfy access control models (RULE 3 Priority)
-                await signInAnonymously(firebaseAuth);
-
-                const currentUser = firebaseAuth.currentUser;
-                if (!currentUser) return;
-
-                isFirebaseConnected = true;
-                updateSyncStatusIndicator(true, `Synced Profile`);
-
-                // Start snapshot sync streams (RULE 2 Simple queries, no complex filters)
-                const userSettingsDocRef = doc(firebaseDb, 'artifacts', APP_ID, 'users', currentUser.uid, 'settings', 'user_settings');
-                const dailyLogDocRef = doc(firebaseDb, 'artifacts', APP_ID, 'users', currentUser.uid, 'daily_logs', state.currentDateStr);
-
-                // Load initial settings snapshot
-                const settingsSnap = await getDoc(userSettingsDocRef);
-                if (settingsSnap.exists()) {
-                    state.user_settings = settingsSnap.data();
-                    localStorage.setItem(`${APP_ID}_settings`, JSON.stringify(state.user_settings));
-                }
-
-                // Load daily log snapshot
-                const logSnap = await getDoc(dailyLogDocRef);
-                if (logSnap.exists()) {
-                    state.daily_logs = logSnap.data();
-                    localStorage.setItem(`${APP_ID}_log_${state.currentDateStr}`, JSON.stringify(state.daily_logs));
-                }
-
-                // Refresh UI layers
-                renderProtocolList();
-                renderChecklist();
-                updateStatsUI();
-
-            } catch (error) {
-                console.error("Cloud Connection Failure:", error);
-                updateSyncStatusIndicator(false, "Connection Error");
-                showToast("Sync initialization failed. Operating locally.", "error");
-            }
-        }
-
-        function updateSyncStatusIndicator(isConnected, customLabel) {
+        function updateSyncBadge(connected, text) {
             const dot = document.getElementById('sync-dot');
             const txt = document.getElementById('sync-text');
-
-            if (isConnected) {
+            if(connected) {
                 dot.className = "w-2.5 h-2.5 rounded-full bg-nordic-accent animate-pulse";
-                txt.innerText = customLabel || "Cloud Synced";
+                txt.innerText = text;
+                txt.className = "text-xs font-bold text-nordic-accent";
             } else {
-                dot.className = "w-2.5 h-2.5 rounded-full bg-red-500";
-                txt.innerText = customLabel || "Offline Mode";
+                dot.className = "w-2.5 h-2.5 rounded-full bg-slate-500";
+                txt.innerText = text;
+                txt.className = "text-xs text-slate-400";
             }
         }
 
         // Quick helper UI components
         window.openSettingsModal = function() {
-            document.getElementById('settings-modal').style.display = 'flex';
+            document.getElementById('settings-modal').classList.remove('hidden');
         }
 
         window.closeSettingsModal = function() {
-            document.getElementById('settings-modal').style.display = 'none';
+            document.getElementById('settings-modal').classList.add('hidden');
         }
 
         window.resetAllAppData = function() {
@@ -1296,7 +1225,6 @@
         }
 
         function showToast(message, type = "info") {
-            // High visibility modern inline notification framework (Never blocks iframe threads)
             const toast = document.createElement('div');
             toast.className = `fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl border shadow-xl transition-all duration-300 transform translate-y-10 opacity-0`;
             
