@@ -1,0 +1,16 @@
+{
+  "name": "NeuroFlow Tracker",
+  "short_name": "NeuroFlow",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0B0F19",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
