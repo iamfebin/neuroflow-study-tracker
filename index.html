@@ -10,7 +10,6 @@
 
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="icon.png">
-        
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -20,10 +19,10 @@
                 extend: {
                     colors: {
                         nordic: {
-                            950: '#0B0F19',
-                            900: '#111827',
-                            800: '#1F2937',
-                            700: '#374151',
+                            950: '#070A13',
+                            900: '#0F1524',
+                            800: '#1E2640',
+                            700: '#2D3960',
                             accent: '#10B981', // Emerald green
                             active: '#3B82F6', // Focus blue
                             german: '#8B5CF6', // Purple for language
@@ -39,16 +38,15 @@
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
-        /* Custom scrollbar for Webkit */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
         }
         ::-webkit-scrollbar-track {
-            background: #0B0F19;
+            background: #070A13;
         }
         ::-webkit-scrollbar-thumb {
-            background: #374151;
+            background: #2D3960;
             border-radius: 3px;
         }
         ::-webkit-scrollbar-thumb:hover {
@@ -59,191 +57,277 @@
 <body class="bg-nordic-950 text-slate-100 min-h-screen flex flex-col selection:bg-nordic-accent selection:text-black">
 
     <!-- Top Navigation Header -->
-    <header class="border-b border-slate-800 bg-nordic-900/80 backdrop-blur sticky top-0 z-40 px-4 py-3">
+    <header class="border-b border-slate-800 bg-nordic-900/90 backdrop-blur sticky top-0 z-40 px-4 py-3">
         <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-            <!-- Brand -->
+            <!-- Brand Info -->
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-nordic-accent to-nordic-active flex items-center justify-center text-white font-extrabold shadow-lg shadow-nordic-accent/10">
                     N⚡
                 </div>
                 <div>
-                    <h1 class="text-lg font-extrabold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">NeuroFlow Tracker</h1>
-                    <p class="text-xs text-slate-400 font-medium">Study & Recovery Protocol</p>
+                    <h1 class="text-md font-extrabold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">NeuroFlow</h1>
+                    <p class="text-[10px] text-slate-400 font-medium">Dual-Domain Pacing System</p>
                 </div>
             </div>
 
-            <!-- Global Action Bar / Indicators -->
-            <div class="flex items-center gap-3">
-                <!-- Streak Badge -->
-                <div class="flex items-center gap-2 bg-nordic-800 border border-amber-500/20 px-3 py-1.5 rounded-full shadow-inner">
-                    <span class="text-lg animate-pulse">🔥</span>
-                    <span class="text-xs text-slate-400">Streak:</span>
-                    <span id="streak-counter" class="text-sm font-bold text-amber-400">0 Days</span>
+            <!-- Global Tabs & Navigation -->
+            <nav class="flex items-center bg-nordic-950/60 p-1 rounded-xl border border-slate-800">
+                <button onclick="switchTab('protocol')" id="tab-btn-protocol" class="px-3 py-1.5 rounded-lg text-xs font-bold transition bg-nordic-accent text-slate-950">
+                    📅 Today's Protocol
+                </button>
+                <button onclick="switchTab('goals')" id="tab-btn-goals" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-100 transition">
+                    🏆 Goals & Milestones
+                </button>
+                <button onclick="switchTab('sync')" id="tab-btn-sync" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-100 transition">
+                    🔗 Cloud Sync
+                </button>
+            </nav>
+
+            <!-- Authentication & Quick Stats Bar -->
+            <div class="flex items-center gap-2">
+                <!-- Streak Fire Counter -->
+                <div onclick="openStreakExplanation()" class="flex items-center gap-1.5 bg-nordic-800 hover:bg-slate-800 border border-amber-500/20 px-3 py-1.5 rounded-full shadow-inner cursor-pointer transition" title="Click to see streak rules">
+                    <span class="text-base animate-pulse">🔥</span>
+                    <span id="streak-counter" class="text-xs font-extrabold text-amber-400">0 Days</span>
                 </div>
 
-                <!-- Sync Indicator -->
-                <button id="sync-badge" onclick="openSettingsModal()" class="flex items-center gap-2 bg-nordic-800 hover:bg-slate-800 transition-colors border border-slate-700 px-3 py-1.5 rounded-full text-xs text-slate-400">
-                    <span class="w-2.5 h-2.5 rounded-full bg-slate-500" id="sync-dot"></span>
-                    <span id="sync-text">Offline Mode</span>
-                </button>
-
-                <!-- Settings Button -->
-                <button onclick="openSettingsModal()" class="p-2 bg-nordic-800 hover:bg-slate-700 transition-colors rounded-xl border border-slate-700">
-                    <svg class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                </button>
+                <!-- Account Status Badge -->
+                <div id="header-auth-badge" class="hidden sm:flex items-center gap-1.5 bg-nordic-800 border border-slate-700 px-3 py-1.5 rounded-full text-xs font-medium text-slate-300">
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-500" id="header-auth-dot"></span>
+                    <span id="header-auth-text">Local Mode</span>
+                </div>
             </div>
         </div>
     </header>
 
-    <!-- Main Container -->
-    <main class="flex-grow max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        <!-- COLUMN 1: Dynamic Protocol (Schedule & Timeline) - spans 5 cols on lg -->
-        <section class="lg:col-span-5 flex flex-col gap-4">
-            <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h2 class="text-md font-bold text-slate-200">Daily Protocol Schedule</h2>
-                        <p class="text-xs text-slate-400">Current status synced with device system clock</p>
-                    </div>
-                    <button id="btn-manual-time" onclick="toggleTimeMode()" class="text-xs font-semibold px-2.5 py-1 bg-nordic-800 text-slate-300 rounded-lg hover:bg-slate-700 border border-slate-700 transition">
-                        System Time
-                    </button>
-                </div>
-
-                <!-- Live clock bar -->
-                <div class="bg-nordic-950/60 rounded-xl p-3 border border-slate-800 flex items-center justify-between mb-4">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Local Time</span>
-                    <div class="flex items-center gap-3">
-                        <span id="current-date-display" class="text-xs text-slate-400">--/--/--</span>
-                        <span id="live-clock" class="text-sm font-extrabold text-nordic-accent tracking-widest">00:00:00</span>
-                    </div>
-                </div>
-
-                <!-- Schedule List -->
-                <div class="space-y-3 max-h-[580px] overflow-y-auto pr-1" id="schedule-container">
-                    <!-- Schedule items dynamically injected here -->
-                </div>
+    <!-- Interactive Warning Alert explaining Streak calculations -->
+    <div id="streak-rule-explanation" class="bg-gradient-to-r from-amber-500/10 to-transparent border-b border-amber-500/20 px-4 py-2.5 hidden">
+        <div class="max-w-7xl mx-auto flex items-center justify-between text-xs text-amber-300 gap-4 flex-wrap">
+            <div class="flex items-center gap-2">
+                <span>⚡</span>
+                <p>
+                    <strong>Streak Calculation Engine:</strong> To increment your streak by 1, you must: (1) Complete at least **4 out of 5 Burnout Prevention Checklist** items, (2) Write a short **Active Recall Recap**, and (3) Click **Lock In Today's Streak** before the 9:00 PM lockout!
+                </p>
             </div>
-        </section>
+            <button onclick="closeStreakExplanation()" class="text-slate-400 hover:text-slate-200 font-extrabold text-base">&times;</button>
+        </div>
+    </div>
 
-        <!-- COLUMN 2: Session Focus Hub (Timers & Interactive Controls) - spans 7 cols on lg -->
-        <section class="lg:col-span-7 flex flex-col gap-6">
+    <!-- Main Dynamic Application Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 md:p-6">
+        
+        <!-- ==================== TAB 1: PROTOCOL & WORKSPACE ==================== -->
+        <div id="tab-content-protocol" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            <!-- Timer Card -->
-            <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col items-center justify-center relative overflow-hidden">
-                <div class="absolute top-3 right-3 flex items-center gap-2">
-                    <span id="timer-protocol-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold text-nordic-accent bg-nordic-accent/10 border border-nordic-accent/20">
-                        Pomodoro Mode
-                    </span>
-                </div>
+            <!-- Left Side: Interactive Schedule (Spans 5 Columns) -->
+            <div class="lg:col-span-5 flex flex-col gap-4">
+                <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-sm font-extrabold uppercase tracking-widest text-slate-400">Today's Timeline</h2>
+                        <button onclick="toggleTimeMode()" id="btn-manual-time" class="text-[10px] font-bold px-2 py-1 bg-nordic-800 text-slate-300 rounded-lg hover:bg-slate-700 border border-slate-700 transition">
+                            Device Clock
+                        </button>
+                    </div>
 
-                <div class="text-center w-full max-w-sm mt-3">
-                    <p id="timer-block-title" class="text-slate-200 font-bold tracking-tight text-lg">No Active Focus Block</p>
-                    <p id="timer-block-subtitle" class="text-xs text-slate-400 mt-1 mb-6">Select a schedule block to launch tracking</p>
-                    
-                    <!-- Circular Progress Container -->
-                    <div class="relative w-48 h-48 mx-auto flex items-center justify-center mb-6">
-                        <svg class="w-full h-full transform -rotate-90">
-                            <!-- Background Circle -->
-                            <circle cx="96" cy="96" r="85" stroke-width="8" stroke="#1F2937" fill="transparent"/>
-                            <!-- Progress Circle -->
-                            <circle id="timer-svg-circle" cx="96" cy="96" r="85" stroke-width="8" stroke="#10B981" fill="transparent"
-                                    stroke-dasharray="534" stroke-dashoffset="0" stroke-linecap="round" class="transition-all duration-300"/>
-                        </svg>
-                        
-                        <!-- Internal Text -->
-                        <div class="absolute inset-0 flex flex-col items-center justify-center">
-                            <span id="timer-countdown" class="text-4xl font-extrabold tracking-tight font-mono text-slate-100">00:00</span>
-                            <span id="timer-sub-text" class="text-xs uppercase font-semibold text-slate-400 mt-1">Focus Time</span>
+                    <!-- Local Time Panel -->
+                    <div class="bg-nordic-950/60 rounded-xl p-3 border border-slate-800 flex items-center justify-between mb-4">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Local Status</span>
+                        <div class="flex items-center gap-2.5 text-xs font-bold font-mono">
+                            <span id="current-date-display" class="text-slate-400">--/--/--</span>
+                            <span class="text-slate-600">|</span>
+                            <span id="live-clock" class="text-nordic-accent tracking-widest">00:00:00</span>
                         </div>
                     </div>
 
-                    <!-- Audio Controls & Test Button -->
-                    <div class="flex items-center justify-center gap-4 mb-6">
-                        <button onclick="playTestChime()" class="text-xs flex items-center gap-1.5 px-3 py-1 bg-nordic-800 text-slate-300 rounded-lg hover:bg-slate-700 transition border border-slate-700">
-                            <span>🔊</span> Test Zen Chime
-                        </button>
-                    </div>
-
-                    <!-- Timer Actions -->
-                    <div class="flex items-center justify-center gap-3">
-                        <button id="timer-btn-primary" onclick="toggleTimer()" disabled class="flex-grow max-w-[140px] px-5 py-3 bg-nordic-accent text-slate-950 font-bold rounded-xl shadow-lg shadow-nordic-accent/20 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition">
-                            Start Focus
-                        </button>
-                        <button id="timer-btn-secondary" onclick="resetTimer()" disabled class="px-4 py-3 bg-nordic-800 border border-slate-700 text-slate-300 font-semibold rounded-xl hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition">
-                            Reset
-                        </button>
-                        <button id="timer-btn-skip" onclick="skipTimerInterval()" disabled class="px-4 py-3 bg-nordic-800 border border-slate-700 text-slate-300 font-semibold rounded-xl hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition" title="Skip Interval">
-                            Skip
-                        </button>
+                    <!-- Dynamic List Container of study schedules -->
+                    <div class="space-y-3 max-h-[580px] overflow-y-auto pr-1" id="schedule-container">
+                        <!-- Elements rendered by JS -->
                     </div>
                 </div>
             </div>
 
-            <!-- Recovery & Burnout Prevention Checklist Card -->
-            <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h2 class="text-md font-bold text-slate-200">Burnout Prevention Checklist</h2>
-                        <p class="text-xs text-slate-400">Complete 4 out of 5 checks daily to lock in streak progress</p>
-                    </div>
-                    <span id="checklist-ratio" class="text-sm font-extrabold text-nordic-accent">0/5 Done</span>
-                </div>
-
-                <!-- Daily checklist list -->
-                <div class="space-y-3 mb-6" id="checklist-elements">
-                    <!-- Checkbox items injected dynamically -->
-                </div>
-
-                <!-- Day Submission Actions -->
-                <div class="p-4 bg-nordic-950/60 rounded-xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div class="text-center sm:text-left">
-                        <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Protocol Status</p>
-                        <p id="submission-status-msg" class="text-sm font-extrabold text-slate-200 mt-0.5">Checklist requirements not met</p>
-                    </div>
-                    <button id="btn-complete-day" onclick="submitDayComplete()" class="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-nordic-accent to-emerald-600 hover:opacity-95 text-slate-950 font-extrabold rounded-xl shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                        Lock In Today's Streak
-                    </button>
-                </div>
-            </div>
-
-            <!-- Stats & Analytics Card -->
-            <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-                <h2 class="text-md font-bold text-slate-200 mb-4">Cognitive Science Insights & Stats</h2>
+            <!-- Right Side: Focus Hub & Daily Retention Recap (Spans 7 Columns) -->
+            <div class="lg:col-span-7 flex flex-col gap-6">
                 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <!-- Central Focus Timer -->
+                <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col items-center justify-center relative overflow-hidden">
+                    <span id="timer-protocol-badge" class="absolute top-4 right-4 px-2.5 py-0.5 rounded-full text-[10px] font-bold text-nordic-accent bg-nordic-accent/10 border border-nordic-accent/20">
+                        Select a block
+                    </span>
+
+                    <div class="text-center w-full max-w-sm mt-3">
+                        <h3 id="timer-block-title" class="text-slate-200 font-bold tracking-tight text-lg">Focus Hub Closed</h3>
+                        <p id="timer-block-subtitle" class="text-xs text-slate-400 mt-1 mb-6">Click a block's "Load Into Timer" button to start</p>
+                        
+                        <!-- Circular Visual Clock -->
+                        <div class="relative w-44 h-44 mx-auto flex items-center justify-center mb-6">
+                            <svg class="w-full h-full transform -rotate-90">
+                                <circle cx="88" cy="88" r="78" stroke-width="6" stroke="#111827" fill="transparent"/>
+                                <circle id="timer-svg-circle" cx="88" cy="88" r="78" stroke-width="6" stroke="#10B981" fill="transparent"
+                                        stroke-dasharray="490" stroke-dashoffset="0" stroke-linecap="round" class="transition-all duration-300"/>
+                            </svg>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                <span id="timer-countdown" class="text-4xl font-black tracking-tight font-mono text-slate-100">00:00</span>
+                                <span id="timer-sub-text" class="text-[10px] uppercase font-bold text-slate-400 mt-1">Ready</span>
+                            </div>
+                        </div>
+
+                        <!-- Timer Control Elements -->
+                        <div class="flex items-center justify-center gap-3">
+                            <button id="timer-btn-primary" onclick="toggleTimer()" disabled class="flex-grow max-w-[140px] px-5 py-2.5 bg-nordic-accent text-slate-950 font-bold rounded-xl shadow-lg hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition text-xs">
+                                Start Session
+                            </button>
+                            <button id="timer-btn-secondary" onclick="resetTimer()" disabled class="px-4 py-2.5 bg-nordic-800 border border-slate-700 text-slate-300 font-semibold rounded-xl text-xs hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                                Reset
+                            </button>
+                            <button id="timer-btn-skip" onclick="skipTimerInterval()" disabled class="px-4 py-2.5 bg-nordic-800 border border-slate-700 text-slate-300 font-semibold rounded-xl text-xs hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition" title="Skip Session">
+                                Skip
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Daily Active Recall Memory Card -->
+                <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-lg">🧠</span>
+                        <div>
+                            <h3 class="text-sm font-extrabold text-slate-200">Active Recall Daily Recap</h3>
+                            <p class="text-[11px] text-slate-400">Forces memory reconstruction before you disconnect</p>
+                        </div>
+                    </div>
+                    <textarea id="recap-text-input" oninput="handleRecapInput()" rows="3" class="w-full bg-nordic-950 border border-slate-800 focus:border-nordic-accent rounded-xl p-3 text-xs text-slate-300 placeholder:text-slate-600 focus:outline-none transition" placeholder="Write down 3 key concepts or vocabulary words you successfully learned today..."></textarea>
+                    <div class="flex items-center justify-between mt-2.5">
+                        <span id="recap-saved-status" class="text-[10px] text-slate-500 font-semibold">Not written yet</span>
+                        <span class="text-[10px] text-slate-400 bg-nordic-950 border border-slate-800 px-2 py-0.5 rounded font-mono">Spaced Repetition</span>
+                    </div>
+                </div>
+
+                <!-- Burnout Prevention Checklist Card -->
+                <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="text-sm font-extrabold text-slate-200">Burnout Prevention Checklist</h3>
+                            <p class="text-xs text-slate-400">Defend your recovery as seriously as your focus</p>
+                        </div>
+                        <span id="checklist-ratio" class="text-xs font-extrabold text-nordic-accent bg-nordic-accent/10 border border-nordic-accent/20 px-2 py-0.5 rounded-full">0/5 Done</span>
+                    </div>
+
+                    <!-- Checklist Elements rendering -->
+                    <div class="space-y-2.5 mb-5" id="checklist-elements"></div>
+
+                    <!-- Lock in streak submit card -->
+                    <div class="p-4 bg-nordic-950/60 rounded-xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div class="text-center sm:text-left">
+                            <span class="text-[9px] uppercase tracking-wider font-extrabold text-slate-500 block">Day Validation</span>
+                            <p id="submission-status-msg" class="text-xs font-bold text-slate-400 mt-0.5">Please complete required checks</p>
+                        </div>
+                        <button id="btn-complete-day" onclick="submitDayComplete()" class="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-nordic-accent to-emerald-600 hover:opacity-95 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+                            Lock In Today's Streak
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 2: GOALS & MILESTONES ==================== -->
+        <div id="tab-content-goals" class="hidden flex flex-col gap-6">
+            
+            <!-- 5-Month Goal Overview Hero Card -->
+            <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                <div class="absolute right-0 top-0 w-64 h-64 bg-nordic-accent/5 rounded-full blur-2xl"></div>
+                
+                <div class="max-w-3xl">
+                    <span class="px-2.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-full text-[10px] font-bold text-amber-500 uppercase tracking-widest">Mastery Plan</span>
+                    <h2 class="text-xl font-extrabold text-slate-100 mt-2">The 5-Month Dual-Domain Goal</h2>
+                    <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                        By studying 9 hours per day across 5 months (approx 150 active days), your target is to accumulate **1,350 hours** of structured focus. This intensity is designed to trigger deep synaptic plasticity, locking in fluent German grammar patterns and database/logical architectures.
+                    </p>
+
+                    <!-- Macro Progress Metrics -->
+                    <div class="mt-6">
+                        <div class="flex items-center justify-between text-xs font-bold mb-2">
+                            <span class="text-slate-300">Total Program Progress (Focus Hours Accumulated)</span>
+                            <span id="macro-goal-hours" class="text-nordic-accent">0 / 1,350 Hours</span>
+                        </div>
+                        <div class="w-full h-3 bg-nordic-950 rounded-full overflow-hidden border border-slate-800">
+                            <div id="macro-goal-bar" class="bg-gradient-to-r from-nordic-accent to-nordic-active h-full w-0 transition-all duration-1000"></div>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1.5">* This bar tracks focus recorded during interactive sessions across both devices.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Subject Breakdowns & Milestones Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- SQL Milestone Board -->
+                <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col">
+                    <div class="flex items-center gap-2 pb-3 border-b border-slate-800 mb-4">
+                        <span class="w-2.5 h-2.5 rounded bg-nordic-accent"></span>
+                        <h3 class="text-sm font-bold text-slate-200">SQL Engineering Goals</h3>
+                    </div>
+                    <div class="flex-grow space-y-3" id="milestones-sql">
+                        <!-- Checklist loaded by JS -->
+                    </div>
+                </div>
+
+                <!-- German Milestone Board -->
+                <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col">
+                    <div class="flex items-center gap-2 pb-3 border-b border-slate-800 mb-4">
+                        <span class="w-2.5 h-2.5 rounded bg-nordic-german"></span>
+                        <h3 class="text-sm font-bold text-slate-200">German Language Goals</h3>
+                    </div>
+                    <div class="flex-grow space-y-3" id="milestones-german">
+                        <!-- Checklist loaded by JS -->
+                    </div>
+                </div>
+
+                <!-- Python Milestone Board -->
+                <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col">
+                    <div class="flex items-center gap-2 pb-3 border-b border-slate-800 mb-4">
+                        <span class="w-2.5 h-2.5 rounded bg-nordic-active"></span>
+                        <h3 class="text-sm font-bold text-slate-200">Python Engineering Goals</h3>
+                    </div>
+                    <div class="flex-grow space-y-3" id="milestones-python">
+                        <!-- Checklist loaded by JS -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Focus Stats Insights Card -->
+            <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+                <h3 class="text-sm font-extrabold text-slate-200 mb-4 uppercase tracking-widest text-slate-400">Focus Data Insights</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
                     <div class="p-3 bg-nordic-950 rounded-xl border border-slate-800">
-                        <span class="text-xs text-slate-400">Total Focus Registered</span>
-                        <p id="stat-total-minutes" class="text-xl font-black text-slate-100 mt-1">0 Min</p>
+                        <span class="text-[10px] text-slate-500 font-bold uppercase">Total Logged Time</span>
+                        <p id="stat-total-minutes" class="text-lg font-black text-slate-100 mt-1">0 Mins</p>
                     </div>
                     <div class="p-3 bg-nordic-950 rounded-xl border border-slate-800">
-                        <span class="text-xs text-slate-400">Current Study Ratio</span>
+                        <span class="text-[10px] text-slate-500 font-bold uppercase">Interleaving Ratio</span>
                         <div class="flex items-center gap-2 mt-1.5 text-xs font-bold">
-                            <span class="text-indigo-400" id="stat-ratio-lang">Language 0%</span>
+                            <span class="text-indigo-400" id="stat-ratio-lang">German 0%</span>
                             <span class="text-slate-400">|</span>
                             <span class="text-emerald-400" id="stat-ratio-logic">Logic 0%</span>
                         </div>
                     </div>
                     <div class="p-3 bg-nordic-950 rounded-xl border border-slate-800">
-                        <span class="text-xs text-slate-400">Longest Streak Run</span>
-                        <p id="stat-longest-streak" class="text-xl font-black text-amber-500 mt-1">🔥 0 Days</p>
+                        <span class="text-[10px] text-slate-500 font-bold uppercase">Longest Streak</span>
+                        <p id="stat-longest-streak" class="text-lg font-black text-amber-500 mt-1">🔥 0 Days</p>
                     </div>
                 </div>
 
                 <!-- Custom Visual Chart Section -->
                 <div class="bg-nordic-950 rounded-xl border border-slate-800 p-4 flex flex-col md:flex-row items-center gap-6 justify-center">
                     <div class="relative w-28 h-28 flex-shrink-0 flex items-center justify-center">
-                        <!-- Custom Dynamic SVG Pie Chart -->
-                        <svg class="w-full h-full transform -rotate-90" id="stats-pie-svg">
-                            <!-- Dynamic wedges drawn programmatically -->
-                        </svg>
+                        <svg class="w-full h-full transform -rotate-90" id="stats-pie-svg"></svg>
                         <div class="absolute w-20 h-20 rounded-full bg-nordic-950 flex items-center justify-center text-center p-1">
                             <span class="text-[10px] text-slate-400 leading-tight">Interleaving Mix</span>
                         </div>
                     </div>
-                    <div class="flex-grow space-y-2 w-full">
-                        <p class="text-xs text-slate-400 font-semibold mb-1">Subject Time Breakdown (Mins)</p>
+                    <div class="flex-grow space-y-2.5 w-full">
+                        <p class="text-xs text-slate-400 font-semibold mb-1">Subject Time Breakdown</p>
                         <!-- German -->
                         <div class="flex items-center justify-between text-xs font-semibold">
                             <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded bg-violet-600"></span>German</span>
@@ -271,7 +355,71 @@
                     </div>
                 </div>
             </div>
-        </section>
+
+        </div>
+
+        <!-- ==================== TAB 3: SETUP & CLOUD SYNC ==================== -->
+        <div id="tab-content-sync" class="hidden max-w-2xl mx-auto flex flex-col gap-6">
+            
+            <div class="bg-nordic-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                    <h2 class="text-sm font-bold text-slate-200">Firebase Synchronization Settings</h2>
+                    <span id="sync-status-indicator" class="text-xs font-bold text-slate-500">Not Connected</span>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-xs text-slate-400 leading-relaxed mb-3">
+                            Paste your Firebase JSON credential template here. To avoid logging in each time, the system stores your session locally on this device.
+                        </p>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">Firebase Configuration JSON</label>
+                        <textarea id="firebase-config-input" rows="5" class="w-full bg-nordic-950 border border-slate-800 focus:border-nordic-accent rounded-xl p-3 text-xs font-mono text-slate-300 focus:outline-none" placeholder='{"apiKey": "...", "authDomain": "...", ...}'></textarea>
+                    </div>
+
+                    <!-- Authorization credentials -->
+                    <div class="p-4 bg-nordic-950 border border-slate-800 rounded-xl space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-300 block" id="auth-title-label">User Account (Sign In)</span>
+                            <button type="button" id="auth-mode-toggle" onclick="toggleAuthMode()" class="text-[10px] text-nordic-active font-semibold hover:underline">
+                                Need an account? Register
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input type="email" id="auth-email-input" placeholder="Account Email" class="bg-nordic-900 border border-slate-800 text-xs p-2.5 rounded-lg focus:outline-none focus:border-nordic-active text-slate-100">
+                            <input type="password" id="auth-pass-input" placeholder="Secure Password" class="bg-nordic-900 border border-slate-800 text-xs p-2.5 rounded-lg focus:outline-none focus:border-nordic-active text-slate-100">
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button onclick="saveFirebaseSettings()" class="flex-grow px-4 py-2.5 bg-nordic-accent text-slate-950 font-bold rounded-xl text-xs hover:opacity-90 transition">
+                            Initialize & Sign In
+                        </button>
+                        <button onclick="disconnectFirebase()" class="px-4 py-2.5 bg-red-950/40 border border-red-900/30 text-red-400 hover:bg-red-900/40 rounded-xl text-xs transition">
+                            Log Out & Clear Sync
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Simulation Tools inside Settings -->
+                <div class="border-t border-slate-800 pt-5 mt-5">
+                    <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wide mb-2">Manual Time Simulation Control</h4>
+                    <p class="text-[11px] text-slate-400 mb-3">Force system clocks to a specific time slot for debugging schedules or Lockout Rules.</p>
+                    <div class="flex items-center gap-3">
+                        <input type="time" id="simulated-time-input" class="bg-nordic-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-300" value="08:00">
+                        <button onclick="applySimulatedTime()" class="px-4 py-2 bg-nordic-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition">
+                            Force Clock Time
+                        </button>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-800 pt-4 mt-5 flex justify-between items-center text-[11px]">
+                    <span class="text-slate-500">NeuroFlow Build v1.3.1</span>
+                    <button onclick="resetAllAppData()" class="text-red-400 hover:underline">Reset Local Storage</button>
+                </div>
+            </div>
+
+        </div>
+
     </main>
 
     <!-- Hard Stop 9:00 PM Lockout Modal/Overlay -->
@@ -294,7 +442,7 @@
     </div>
 
     <!-- Active Diffuse Break Overlay Screen -->
-    <div id="diffuse-overlay" class="fixed inset-0 bg-nordic-950/90 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 hidden">
+    <div id="diffuse-overlay" class="fixed inset-0 bg-nordic-950/90 backdrop-blur-md z-40 flex-col items-center justify-center p-6 hidden">
         <div class="max-w-md w-full bg-nordic-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-center">
             <span class="text-5xl block animate-pulse mb-3">🧠</span>
             <h2 class="text-xl font-bold text-slate-100">Active Diffuse Mode Break</h2>
@@ -316,80 +464,12 @@
         </div>
     </div>
 
-    <!-- System Settings / Cloud Sync Modal -->
-    <div id="settings-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="w-full max-w-lg bg-nordic-900 border border-slate-800 rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
-                <h3 class="text-lg font-bold text-slate-200">System Integration & Backup</h3>
-                <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-slate-200 text-lg">&times;</button>
-            </div>
-
-            <!-- Firebase Connection Form -->
-            <div class="space-y-4">
-                <div>
-                    <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wide mb-2">Cloud Synced Profile Storage</h4>
-                    <p class="text-[11px] text-slate-400 leading-normal mb-3">
-                        Connect to your Firebase project to back up your streaks, completed focus metrics, and daily checklist records across Windows 11 and Android automatically.
-                    </p>
-                </div>
-
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-400 mb-1">Firebase Configuration (JSON format)</label>
-                        <textarea id="firebase-config-input" rows="4" class="w-full bg-nordic-950 border border-slate-800 focus:border-nordic-accent rounded-xl p-3 text-xs font-mono text-slate-300 focus:outline-none" placeholder='{"apiKey": "...", ...}'></textarea>
-                    </div>
-
-                    <!-- User Account Registration Card -->
-                    <div class="p-4 bg-nordic-950 border border-slate-800 rounded-xl space-y-3">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-slate-300 block" id="auth-title-label">User Account (Sign In)</span>
-                            <button type="button" id="auth-mode-toggle" onclick="toggleAuthMode()" class="text-[11px] text-nordic-active font-semibold hover:underline">
-                                Need an account? Register
-                            </button>
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <input type="email" id="auth-email-input" placeholder="Account Email" class="bg-nordic-900 border border-slate-800 text-xs p-2.5 rounded-lg focus:outline-none focus:border-nordic-active text-slate-100">
-                            <input type="password" id="auth-pass-input" placeholder="Secure Password" class="bg-nordic-900 border border-slate-800 text-xs p-2.5 rounded-lg focus:outline-none focus:border-nordic-active text-slate-100">
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col sm:flex-row gap-3">
-                        <button onclick="saveFirebaseSettings()" class="flex-grow px-4 py-2.5 bg-nordic-accent text-slate-950 font-bold rounded-xl text-xs hover:opacity-90 transition">
-                            Initialize & Save Firebase
-                        </button>
-                        <button onclick="disconnectFirebase()" class="px-4 py-2.5 bg-red-950/40 border border-red-900/30 text-red-400 hover:bg-red-900/40 rounded-xl text-xs transition">
-                            Clear Sync Configuration
-                        </button>
-                    </div>
-                </div>
-
-                <div class="border-t border-slate-800 pt-4 mt-4">
-                    <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wide mb-2">Manual Time Simulation Control</h4>
-                    <p class="text-[11px] text-slate-400 mb-3">Simulate any time of day to bypass schedules or lockout periods for testing purposes.</p>
-                    <div class="flex items-center gap-3">
-                        <input type="time" id="simulated-time-input" class="bg-nordic-950 border border-slate-800 focus:border-nordic-accent rounded-xl px-3 py-2 text-xs font-mono text-slate-300" value="08:00">
-                        <button onclick="applySimulatedTime()" class="px-4 py-2 bg-nordic-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition">
-                            Force Clock Time
-                        </button>
-                    </div>
-                </div>
-
-                <div class="border-t border-slate-800 pt-4 flex justify-between items-center text-xs">
-                    <span class="text-slate-500">NeuroFlow build v1.2.0</span>
-                    <button onclick="resetAllAppData()" class="text-red-400 hover:underline">Reset Local Storage</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Main JS Application Integration -->
     <script type="module">
-        // Import Firebase modules safely from JS CDNs (Required in browser-only settings)
         import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Constants & Core Schedules definition
         const APP_ID = 'neuroflow-tracker';
 
         const FULL_PROTOCOL_SCHEDULE = [
@@ -413,7 +493,26 @@
             { id: 'eighty_percent_acceptance', text: 'The 80% Rule: Accepted that 80% output on a bad day is a great outcome?' }
         ];
 
-        // App States Structs
+        // Customizable Milestones towards the 5-Month Goal
+        const DEFAULT_MILESTONES = {
+            sql: [
+                { id: 'sql_m1', text: 'Complete all 50 SQL Study queries (JOINS, subqueries)', done: false },
+                { id: 'sql_m2', text: 'Successfully resolve 15 LeetCode Database Medium puzzles', done: false },
+                { id: 'sql_m3', text: 'Architect 3 custom normalized databases from scratch', done: false }
+            ],
+            german: [
+                { id: 'ger_m1', text: 'Memorize 2,000 vocabulary words in Anki', done: false },
+                { id: 'ger_m2', text: 'Read 3 B1-level graded reader books', done: false },
+                { id: 'ger_m3', text: 'Log 20 hours of spoken speech output', done: false }
+            ],
+            python: [
+                { id: 'py_m1', text: 'Build 3 functional object-oriented applications', done: false },
+                { id: 'py_m2', text: 'Design a local API using Flask or FastAPI', done: false },
+                { id: 'py_m3', text: 'Solve 20 algorithms focus problems on recursion/sorting', done: false }
+            ]
+        };
+
+        // Complete Application State
         let state = {
             currentDateStr: "",
             user_settings: {
@@ -421,37 +520,22 @@
                 current_streak: 0,
                 longest_streak: 0,
                 swapped_logic_subjects: {}, // Maps dayString_blockId -> 'SQL' or 'Python'
-                saved_focus_mins: { german: 0, sql: 0, python: 0 } // Historical aggregates
+                saved_focus_mins: { german: 0, sql: 0, python: 0 },
+                milestones: JSON.parse(JSON.stringify(DEFAULT_MILESTONES)) // Deep copy of defaults
             },
             daily_logs: {
                 completed_blocks: [],
-                checklist_status: {
-                    hard_stop: false,
-                    screen_free_breaks: false,
-                    guilt_free_leisure: false,
-                    hydration_glucose: false,
-                    eighty_percent_acceptance: false
-                },
-                day_completed: false
+                checklist_status: { hard_stop: false, screen_free_breaks: false, guilt_free_leisure: false, hydration_glucose: false, eighty_percent_acceptance: false },
+                day_completed: false,
+                recap_text: "" // Daily active recall recap text
             }
         };
 
-        // Simulated Time / Real Time configs
         let isTimeSimulated = false;
-        let simTimeOffset = 0; // Milliseconds to adjust current Date
-
-        // Active State variables for Tracking Timers
+        let simTimeOffset = 0;
         let activeBlockRef = null;
-        let timerState = {
-            isRunning: false,
-            mode: "idle", // 'focus', 'break', 'flow', 'idle'
-            currentSeconds: 0,
-            targetSeconds: 0,
-            elapsedSeconds: 0, // Used for flowtime aggregates
-            intervalId: null
-        };
+        let timerState = { isRunning: false, mode: "idle", currentSeconds: 0, targetSeconds: 0, elapsedSeconds: 0, intervalId: null };
 
-        // Firebase Service Instances
         let firebaseApp = null;
         let firebaseAuth = null;
         let firebaseDb = null;
@@ -459,8 +543,8 @@
         let unsubscribeSettings = null;
         let unsubscribeLogs = null;
         let authMode = 'signin';
+        let lastLoggedActiveId = "";
 
-        // Initialize App & Hook UI Events
         window.onload = function() {
             getCurrentDateString();
             loadLocalState();
@@ -468,226 +552,181 @@
             initializeFirebaseFromLocal();
             renderProtocolList();
             renderChecklist();
+            renderMilestones();
             updateStatsUI();
             checkLockoutRule();
         };
 
-        // Set date string
+        // Tab Navigation Hub
+        window.switchTab = function(tabName) {
+            const protocolTab = document.getElementById('tab-content-protocol');
+            const goalsTab = document.getElementById('tab-content-goals');
+            const syncTab = document.getElementById('tab-content-sync');
+
+            if (protocolTab) protocolTab.classList.add('hidden');
+            if (goalsTab) goalsTab.classList.add('hidden');
+            if (syncTab) syncTab.classList.add('hidden');
+
+            const btnProtocol = document.getElementById('tab-btn-protocol');
+            const btnGoals = document.getElementById('tab-btn-goals');
+            const btnSync = document.getElementById('tab-btn-sync');
+
+            const inactiveClass = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-100 transition";
+            const activeClass = "px-3 py-1.5 rounded-lg text-xs font-bold transition bg-nordic-accent text-slate-950";
+
+            if (btnProtocol) btnProtocol.className = inactiveClass;
+            if (btnGoals) btnGoals.className = inactiveClass;
+            if (btnSync) btnSync.className = inactiveClass;
+
+            if (tabName === 'protocol') {
+                if (protocolTab) protocolTab.classList.remove('hidden');
+                if (btnProtocol) btnProtocol.className = activeClass;
+            } else if (tabName === 'goals') {
+                if (goalsTab) goalsTab.classList.remove('hidden');
+                if (btnGoals) btnGoals.className = activeClass;
+            } else if (tabName === 'sync') {
+                if (syncTab) syncTab.classList.remove('hidden');
+                if (btnSync) btnSync.className = activeClass;
+            }
+        }
+
+        // Streak Warning banner toggles
+        window.openStreakExplanation = function() {
+            const el = document.getElementById('streak-rule-explanation');
+            if (el) el.classList.remove('hidden');
+        }
+        window.closeStreakExplanation = function() {
+            const el = document.getElementById('streak-rule-explanation');
+            if (el) el.classList.add('hidden');
+        }
+
         function getCurrentDateString() {
             const d = getAdjustedDate();
             const yyyy = d.getFullYear();
             const mm = String(d.getMonth() + 1).padStart(2, '0');
             const dd = String(d.getDate()).padStart(2, '0');
             state.currentDateStr = `${yyyy}-${mm}-${dd}`;
-            document.getElementById('current-date-display').innerText = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            const displayEl = document.getElementById('current-date-display');
+            if (displayEl) {
+                displayEl.innerText = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            }
         }
 
-        // Realtime Clock Loop
         function initializeTimeTracking() {
             setInterval(() => {
                 const now = getAdjustedDate();
-                document.getElementById('live-clock').innerText = now.toTimeString().split(' ')[0];
+                const clockEl = document.getElementById('live-clock');
+                if (clockEl) {
+                    clockEl.innerText = now.toTimeString().split(' ')[0];
+                }
                 checkActiveBlock(now);
                 checkLockoutRule();
             }, 1000);
         }
 
-        // Clock time simulation modifiers
         window.toggleTimeMode = function() {
             isTimeSimulated = !isTimeSimulated;
             const btn = document.getElementById('btn-manual-time');
-            if (!isTimeSimulated) {
-                simTimeOffset = 0;
-                btn.innerText = "System Time";
-                btn.className = "text-xs font-semibold px-2.5 py-1 bg-nordic-800 text-slate-300 rounded-lg hover:bg-slate-700 border border-slate-700 transition";
-            } else {
-                btn.innerText = "Simulated";
-                btn.className = "text-xs font-semibold px-2.5 py-1 bg-emerald-600 text-slate-100 rounded-lg hover:bg-emerald-500 border border-slate-600 transition";
+            if (btn) {
+                if (!isTimeSimulated) {
+                    simTimeOffset = 0;
+                    btn.innerText = "Device Clock";
+                    btn.className = "text-[10px] font-bold px-2 py-1 bg-nordic-800 text-slate-300 rounded-lg hover:bg-slate-700 border border-slate-700 transition";
+                } else {
+                    btn.innerText = "Simulating";
+                    btn.className = "text-[10px] font-bold px-2 py-1 bg-emerald-600 text-slate-100 rounded-lg hover:bg-emerald-500 border border-slate-600 transition";
+                }
             }
             getCurrentDateString();
             renderProtocolList();
         }
 
         window.applySimulatedTime = function() {
-            const timeValue = document.getElementById('simulated-time-input').value;
+            const timeInput = document.getElementById('simulated-time-input');
+            const timeValue = timeInput ? timeInput.value : "";
             if (!timeValue) return;
             isTimeSimulated = true;
-            
             const [hours, minutes] = timeValue.split(':');
             const targetDate = new Date();
             targetDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-            
             const systemDate = new Date();
             simTimeOffset = targetDate.getTime() - systemDate.getTime();
-            
             const btn = document.getElementById('btn-manual-time');
-            btn.innerText = "Simulated";
-            btn.className = "text-xs font-semibold px-2.5 py-1 bg-emerald-600 text-slate-100 rounded-lg hover:bg-emerald-500 border border-slate-600 transition";
-            
+            if (btn) {
+                btn.innerText = "Simulating";
+                btn.className = "text-[10px] font-bold px-2 py-1 bg-emerald-600 text-slate-100 rounded-lg hover:bg-emerald-500 border border-slate-600 transition";
+            }
             getCurrentDateString();
             renderProtocolList();
-            closeSettingsModal();
+            showToast("System time offset applied successfully.", "success");
         }
 
         function getAdjustedDate() {
-            if (isTimeSimulated) {
-                return new Date(Date.now() + simTimeOffset);
-            }
-            return new Date();
+            return isTimeSimulated ? new Date(Date.now() + simTimeOffset) : new Date();
         }
 
-        // Auth toggle setup for Settings card
-        window.toggleAuthMode = function() {
-            const label = document.getElementById('auth-title-label');
-            const toggle = document.getElementById('auth-mode-toggle');
-            if (authMode === 'signin') {
-                authMode = 'register';
-                label.innerText = "User Account (Register)";
-                toggle.innerText = "Already have an account? Sign In";
-            } else {
-                authMode = 'signin';
-                label.innerText = "User Account (Sign In)";
-                toggle.innerText = "Need an account? Register";
-            }
-        }
-
-        // Logic swaps SQL <-> Python inside current state
+        // Switch Logic block target SQL <-> Python
         window.swapSubject = function(blockId) {
             const stateKey = `${state.currentDateStr}_${blockId}`;
             const currentSub = state.user_settings.swapped_logic_subjects[stateKey] || 'SQL';
             const nextSub = currentSub === 'SQL' ? 'Python' : 'SQL';
-            
             state.user_settings.swapped_logic_subjects[stateKey] = nextSub;
             saveStateAndSync();
             renderProtocolList();
-            
-            // If the swapped block is the currently focused block, update the timer title!
-            if (activeBlockRef && activeBlockRef.id === blockId) {
+            updateStatsUI();
+            if(activeBlockRef && activeBlockRef.id === blockId) {
                 setTrackingBlockUI(activeBlockRef);
             }
         }
 
-        // Render timeline with correct classes
-        window.renderProtocolList = function() {
-            const container = document.getElementById('schedule-container');
-            container.innerHTML = '';
-
-            const now = getAdjustedDate();
-            const currentMinStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
-
-            FULL_PROTOCOL_SCHEDULE.forEach(block => {
-                const isCurrent = currentMinStr >= block.start && currentMinStr < block.end;
-                const isLogged = state.daily_logs.completed_blocks.includes(block.id);
-                const stateKey = `${state.currentDateStr}_${block.id}`;
-                
-                // Subject resolution (check if swapped to Python)
-                let blockName = block.name;
-                let swapBtnHtml = "";
-                let isLogicTarget = block.id.startsWith('sql_') || block.key === 'logic';
-
-                if (isLogicTarget) {
-                    const chosen = state.user_settings.swapped_logic_subjects[stateKey] || 'SQL';
-                    blockName = chosen === 'SQL' ? 'SQL Block (Deep Logic)' : 'Python Block (Applied Engineering)';
-                    swapBtnHtml = `<button onclick="swapSubject('${block.id}')" class="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded border border-slate-700 hover:border-nordic-accent transition">⚡ Swap to ${chosen === 'SQL' ? 'Python' : 'SQL'}</button>`;
-                }
-
-                // Tailwind styles
-                let typeColor = "border-l-slate-700";
-                if(block.type === 'study') {
-                    typeColor = block.key === 'german' ? "border-l-nordic-german" : "border-l-nordic-active";
-                } else if(block.format === 'Guilt-Free') {
-                    typeColor = "border-l-nordic-warning";
-                }
-
-                let containerBg = isCurrent ? "bg-slate-800/40 border-slate-700 shadow-md ring-1 ring-slate-700/50" : "bg-nordic-950/40 border-slate-900";
-                if(isLogged) containerBg = "bg-nordic-900/30 border-slate-900 opacity-60";
-
-                const blockItem = document.createElement('div');
-                blockItem.className = `p-3 rounded-xl border-l-4 ${typeColor} ${containerBg} border flex items-start justify-between gap-3 transition`;
-                blockItem.innerHTML = `
-                    <div class="space-y-1 flex-grow">
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="text-xs font-bold text-slate-200 tracking-tight">${blockName}</span>
-                            <span class="text-[10px] font-mono bg-nordic-800 text-slate-400 px-1.5 py-0.5 rounded">${block.start} - ${block.end}</span>
-                            ${isCurrent ? '<span class="text-[10px] uppercase font-bold tracking-wider text-nordic-accent bg-nordic-accent/10 px-1.5 py-0.5 rounded animate-pulse">Active Now</span>' : ''}
-                            ${isLogged ? '<span class="text-[10px] uppercase font-bold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">Logged ✓</span>' : ''}
-                        </div>
-                        <p class="text-[11px] text-slate-400 leading-normal max-w-sm">${block.desc}</p>
-                        <div class="pt-1 flex items-center gap-2">${swapBtnHtml}</div>
-                    </div>
-                    <div class="flex items-center gap-2 flex-shrink-0 self-center">
-                        <!-- Manual toggle action button -->
-                        <button onclick="toggleBlockCompletion('${block.id}')" class="w-8 h-8 rounded-full border ${isLogged ? 'bg-nordic-accent text-slate-950 border-nordic-accent' : 'border-slate-700 text-slate-500 hover:border-slate-500'} flex items-center justify-center transition">
-                            ✓
-                        </button>
-                        <button onclick="launchBlockToTimer('${block.id}')" class="w-8 h-8 rounded-full border border-slate-700 text-slate-400 hover:border-nordic-active hover:text-nordic-active flex items-center justify-center transition">
-                            ⏱️
-                        </button>
-                    </div>
-                `;
-                container.appendChild(blockItem);
-            });
-        }
-
-        // Handle Active Highlights dynamically
-        let lastLoggedActiveId = "";
-        function checkActiveBlock(now) {
-            const currentMinStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
-            let foundActive = null;
-
-            for(let block of FULL_PROTOCOL_SCHEDULE) {
-                if(currentMinStr >= block.start && currentMinStr < block.end) {
-                    foundActive = block;
-                    break;
-                }
-            }
-
-            if(foundActive && (!activeBlockRef || activeBlockRef.id !== foundActive.id)) {
-                activeBlockRef = foundActive;
-                setTrackingBlockUI(foundActive);
-            }
-        }
-
-        // Complete/undo manual task states
-        window.toggleBlockCompletion = function(blockId) {
-            const index = state.daily_logs.completed_blocks.indexOf(blockId);
-            if (index > -1) {
-                state.daily_logs.completed_blocks.splice(index, 1);
-            } else {
-                state.daily_logs.completed_blocks.push(blockId);
-            }
+        // Active text recap event listeners
+        window.handleRecapInput = function() {
+            const inputEl = document.getElementById('recap-text-input');
+            const val = inputEl ? inputEl.value : "";
+            state.daily_logs.recap_text = val;
             saveStateAndSync();
-            renderProtocolList();
-        }
 
-        // Active Hard Stop Lockout Enforcement
-        function checkLockoutRule() {
-            const now = getAdjustedDate();
-            const currHour = now.getHours();
-            
-            const lockoutEl = document.getElementById('lockout-overlay');
-            // Past 9:00 PM (21:00) lockout active unless bypassed by Dev Mode overrides
-            const isLockoutCondition = (currHour >= 21 || currHour < 5);
-            const isOverrideActive = localStorage.getItem(APP_ID + '_override_lockout') === 'true';
-
-            if (isLockoutCondition && !isOverrideActive) {
-                lockoutEl.classList.remove('hidden');
-                lockoutEl.classList.add('flex');
-                // Stop active timers during block enforcement
-                if (timerState.isRunning) {
-                    resetTimer();
+            const status = document.getElementById('recap-saved-status');
+            if (status) {
+                if (val.trim().length > 10) {
+                    status.innerText = "✓ Memory Reinforcement Saved Locally & Synced";
+                    status.className = "text-[10px] text-nordic-accent font-bold";
+                } else {
+                    status.innerText = "Writing active recall recap...";
+                    status.className = "text-[10px] text-slate-500 font-semibold";
                 }
-            } else {
-                lockoutEl.classList.add('hidden');
-                lockoutEl.classList.remove('flex');
             }
+            renderChecklist();
         }
 
-        window.overrideLockoutForDebug = function() {
-            localStorage.setItem(APP_ID + '_override_lockout', 'true');
-            document.getElementById('lockout-overlay').classList.add('hidden');
-            document.getElementById('lockout-overlay').classList.remove('flex');
-            showToast("Bypassing Hard Stop Lockout for testing.");
+        // Render Milestones Section
+        window.renderMilestones = function() {
+            const renderCategory = (category, elementId) => {
+                const container = document.getElementById(elementId);
+                if (!container) return;
+                container.innerHTML = '';
+                const items = state.user_settings.milestones[category] || [];
+
+                items.forEach((m, idx) => {
+                    const row = document.createElement('label');
+                    row.className = `flex items-start gap-3 p-3 rounded-xl border transition cursor-pointer select-none ${m.done ? 'bg-nordic-accent/5 border-nordic-accent/30 text-slate-100' : 'bg-nordic-950/40 border-slate-900 text-slate-400 hover:border-slate-800'}`;
+                    row.innerHTML = `
+                        <input type="checkbox" onchange="toggleMilestone('${category}', ${idx})" ${m.done ? 'checked' : ''} class="mt-0.5 w-4 h-4 rounded border-slate-700 bg-nordic-900 text-nordic-accent focus:ring-0 cursor-pointer accent-nordic-accent">
+                        <span class="text-xs font-semibold leading-normal ${m.done ? 'line-through text-slate-500' : ''}">${m.text}</span>
+                    `;
+                    container.appendChild(row);
+                });
+            };
+
+            renderCategory('sql', 'milestones-sql');
+            renderCategory('german', 'milestones-german');
+            renderCategory('python', 'milestones-python');
+        }
+
+        window.toggleMilestone = function(category, index) {
+            state.user_settings.milestones[category][index].done = !state.user_settings.milestones[category][index].done;
+            saveStateAndSync();
+            renderMilestones();
         }
 
         // Focus Timer Architecture
@@ -696,7 +735,7 @@
             if (!block) return;
             activeBlockRef = block;
             setTrackingBlockUI(block);
-            showToast(`Launched session: ${block.name}`);
+            showToast(`Launched focus block: ${block.name}`);
         }
 
         function setTrackingBlockUI(block) {
@@ -704,6 +743,8 @@
             const sub = document.getElementById('timer-block-subtitle');
             const badge = document.getElementById('timer-protocol-badge');
             
+            if (!title || !sub || !badge) return;
+
             const stateKey = `${state.currentDateStr}_${block.id}`;
             let subjectName = block.name;
             if(block.key === 'logic') {
@@ -721,9 +762,12 @@
                 } else if(block.format === 'Flowtime' || block.format === 'Diffuse Mode' || block.format === 'Recovery' || block.format === 'Guilt-Free') {
                     setupTimerParameters(0, "flow");
                 }
-                document.getElementById('timer-btn-primary').disabled = false;
-                document.getElementById('timer-btn-secondary').disabled = false;
-                document.getElementById('timer-btn-skip').disabled = false;
+                const btnPrimary = document.getElementById('timer-btn-primary');
+                const btnSecondary = document.getElementById('timer-btn-secondary');
+                const btnSkip = document.getElementById('timer-btn-skip');
+                if (btnPrimary) btnPrimary.disabled = false;
+                if (btnSecondary) btnSecondary.disabled = false;
+                if (btnSkip) btnSkip.disabled = false;
             }
         }
 
@@ -740,6 +784,8 @@
             const subTextEl = document.getElementById('timer-sub-text');
             const svgCircle = document.getElementById('timer-svg-circle');
             
+            if (!countdownEl || !subTextEl || !svgCircle) return;
+
             let displaySecs = timerState.currentSeconds;
             let mins = Math.floor(displaySecs / 60);
             let secs = displaySecs % 60;
@@ -747,37 +793,40 @@
 
             if(timerState.mode === 'focus') {
                 subTextEl.innerText = "Focus Time";
-                subTextEl.className = "text-xs uppercase font-semibold text-nordic-accent mt-1";
+                subTextEl.className = "text-[10px] uppercase font-semibold text-nordic-accent mt-1";
                 const fraction = timerState.currentSeconds / timerState.targetSeconds;
-                svgCircle.setAttribute('stroke-dashoffset', 534 * (1 - fraction));
+                svgCircle.setAttribute('stroke-dashoffset', 490 * (1 - fraction));
                 svgCircle.setAttribute('stroke', '#10B981');
             } else if(timerState.mode === 'break') {
                 subTextEl.innerText = "Diffuse Break";
-                subTextEl.className = "text-xs uppercase font-semibold text-nordic-active mt-1";
+                subTextEl.className = "text-[10px] uppercase font-semibold text-nordic-active mt-1";
                 const fraction = timerState.currentSeconds / timerState.targetSeconds;
-                svgCircle.setAttribute('stroke-dashoffset', 534 * (1 - fraction));
+                svgCircle.setAttribute('stroke-dashoffset', 490 * (1 - fraction));
                 svgCircle.setAttribute('stroke', '#3B82F6');
-                document.getElementById('diffuse-countdown').innerText = countdownEl.innerText;
+                const diffuseCountdown = document.getElementById('diffuse-countdown');
+                if (diffuseCountdown) {
+                    diffuseCountdown.innerText = countdownEl.innerText;
+                }
             } else if(timerState.mode === 'flow') {
                 subTextEl.innerText = "Flow Active";
-                subTextEl.className = "text-xs uppercase font-semibold text-violet-400 mt-1";
+                subTextEl.className = "text-[10px] uppercase font-semibold text-violet-400 mt-1";
                 svgCircle.setAttribute('stroke-dashoffset', 0);
                 svgCircle.setAttribute('stroke', '#8B5CF6');
             }
         }
 
-        // Start/Pause execution loops
         window.toggleTimer = function() {
             const btn = document.getElementById('timer-btn-primary');
+            if (!btn) return;
             if(timerState.isRunning) {
                 clearInterval(timerState.intervalId);
                 timerState.isRunning = false;
-                btn.innerText = "Resume Focus";
-                btn.className = "flex-grow max-w-[140px] px-5 py-3 bg-nordic-accent text-slate-950 font-bold rounded-xl shadow-lg hover:opacity-90 transition";
+                btn.innerText = "Resume Session";
+                btn.className = "flex-grow max-w-[140px] px-5 py-2.5 bg-nordic-accent text-slate-950 font-bold rounded-xl shadow-lg hover:opacity-90 transition text-xs";
             } else {
                 timerState.isRunning = true;
-                btn.innerText = "Pause Focus";
-                btn.className = "flex-grow max-w-[140px] px-5 py-3 bg-nordic-active text-white font-bold rounded-xl shadow-lg hover:opacity-90 transition";
+                btn.innerText = "Pause Session";
+                btn.className = "flex-grow max-w-[140px] px-5 py-2.5 bg-nordic-active text-white font-bold rounded-xl shadow-lg hover:opacity-90 transition text-xs";
                 
                 timerState.intervalId = setInterval(() => {
                     if(timerState.mode === 'focus' || timerState.mode === 'break') {
@@ -801,8 +850,11 @@
             timerState.isRunning = false;
             timerState.mode = "idle";
             if(activeBlockRef) setTrackingBlockUI(activeBlockRef);
-            document.getElementById('timer-btn-primary').innerText = "Start Focus";
-            document.getElementById('timer-btn-primary').className = "flex-grow max-w-[140px] px-5 py-3 bg-nordic-accent text-slate-950 font-bold rounded-xl shadow-lg hover:opacity-90 transition";
+            const btnPrimary = document.getElementById('timer-btn-primary');
+            if (btnPrimary) {
+                btnPrimary.innerText = "Start Session";
+                btnPrimary.className = "flex-grow max-w-[140px] px-5 py-2.5 bg-nordic-accent text-slate-950 font-bold rounded-xl shadow-lg hover:opacity-90 transition text-xs";
+            }
         }
 
         window.skipTimerInterval = function() {
@@ -813,21 +865,24 @@
             playChimeSound();
             clearInterval(timerState.intervalId);
             timerState.isRunning = false;
-            document.getElementById('timer-btn-primary').innerText = "Start Focus";
-            document.getElementById('timer-btn-primary').className = "flex-grow max-w-[140px] px-5 py-3 bg-nordic-accent text-slate-950 font-bold rounded-xl shadow-lg hover:opacity-90 transition";
+            const btnPrimary = document.getElementById('timer-btn-primary');
+            if (btnPrimary) {
+                btnPrimary.innerText = "Start Session";
+                btnPrimary.className = "flex-grow max-w-[140px] px-5 py-2.5 bg-nordic-accent text-slate-950 font-bold rounded-xl shadow-lg hover:opacity-90 transition text-xs";
+            }
 
             if(timerState.mode === 'focus') {
                 logCompletedSessionData(timerState.elapsedSeconds);
-                showToast("Focus interval complete. Launching diffuse mode tracking rules.", "success");
+                showToast("Focus interval complete! Starting diffuse mode recovery breaks.", "success");
                 setupTimerParameters(10 * 60, "break");
                 openDiffuseOverlay(true);
             } else if(timerState.mode === 'break') {
-                showToast("Break concluded. Returning to standard tracking stack.", "info");
+                showToast("Break concluded. Ready for next session.", "info");
                 openDiffuseOverlay(false);
                 resetTimer();
             } else if(timerState.mode === 'flow') {
                 logCompletedSessionData(timerState.elapsedSeconds);
-                showToast("Flowtime interval committed to database.", "success");
+                showToast("Flowtime session safely locked in.", "success");
                 resetTimer();
                 openDiffuseOverlay(false);
             }
@@ -857,8 +912,9 @@
             renderProtocolList();
         }
 
-        function openDiffuseOverlay(show) {
+        window.openDiffuseOverlay = function(show) {
             const overlay = document.getElementById('diffuse-overlay');
+            if (!overlay) return;
             if(show) {
                 overlay.classList.remove('hidden');
                 overlay.classList.add('flex');
@@ -880,7 +936,6 @@
             }
         }
 
-        // Custom Chime Synth API
         function playChimeSound() {
             try {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -888,8 +943,8 @@
                 const gain = ctx.createGain();
                 
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5 Clean frequency
-                osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.15); // Slide upward to G5
+                osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(783.99, ctx.currentTime + 0.15);
                 
                 gain.gain.setValueAtTime(0.2, ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
@@ -900,55 +955,62 @@
                 osc.start();
                 osc.stop(ctx.currentTime + 1.2);
             } catch(e) {
-                console.log("Audio pipeline blocked by user preferences.");
+                console.log("Audio contexts blocked or muted.");
             }
         }
 
         window.playTestChime = function() {
             playChimeSound();
-            showToast("Zen High-frequency acoustic wave generated successfully.", "success");
+            showToast("Zen high-frequency chime emitted.", "success");
         }
 
-        // Render Burnout Checklist items
+        // Checklist Rendering Engine
         window.renderChecklist = function() {
             const container = document.getElementById('checklist-elements');
+            if (!container) return;
             container.innerHTML = '';
-
             let completedCount = 0;
 
             CHECKLIST_KEYS.forEach(item => {
                 const isChecked = state.daily_logs.checklist_status[item.id] || false;
-                if (isChecked) completedCount++;
+                if(isChecked) completedCount++;
 
-                const row = document.createElement('label');
-                row.className = `flex items-start gap-3 p-3 bg-nordic-950/40 border border-slate-900 rounded-xl cursor-pointer hover:bg-slate-800/20 transition group select-none`;
-                row.innerHTML = `
-                    <input type="checkbox" onchange="toggleCheckItem('${item.id}')" ${isChecked ? 'checked' : ''} class="mt-0.5 w-4 h-4 rounded border-slate-700 bg-nordic-900 text-nordic-accent focus:ring-0 focus:ring-offset-0 transition cursor-pointer accent-nordic-accent">
-                    <span class="text-xs font-medium text-slate-300 leading-normal group-hover:text-slate-200 transition ${isChecked ? 'line-through text-slate-500 group-hover:text-slate-500' : ''}">${item.text}</span>
+                const checkHtml = `
+                    <label class="flex items-start gap-3 p-3 bg-nordic-950/40 border border-slate-900 rounded-xl cursor-pointer hover:bg-slate-800/20 transition group select-none">
+                        <input type="checkbox" onchange="toggleCheckItem('${item.id}')" ${isChecked ? 'checked' : ''} class="mt-0.5 w-4 h-4 rounded border-slate-700 bg-nordic-900 text-nordic-accent focus:ring-0 cursor-pointer accent-nordic-accent">
+                        <span class="text-xs font-semibold text-slate-300 leading-normal group-hover:text-slate-200 transition ${isChecked ? 'line-through text-slate-500' : ''}">${item.text}</span>
+                    </label>
                 `;
-                container.appendChild(row);
+                container.innerHTML += checkHtml;
             });
 
-            document.getElementById('checklist-ratio').innerText = `${completedCount}/5 Verified`;
+            const ratioEl = document.getElementById('checklist-ratio');
+            if (ratioEl) ratioEl.innerText = `${completedCount}/5 Verified`;
             
             const submitBtn = document.getElementById('btn-complete-day');
-            const subMsg = document.getElementById('submission-status-msg');
+            const msg = document.getElementById('submission-status-msg');
+            const dailyRecapText = state.daily_logs.recap_text || "";
 
-            if (state.daily_logs.day_completed) {
-                subMsg.innerText = "✓ Today locked in successfully!";
-                subMsg.className = "text-sm font-extrabold text-nordic-accent mt-0.5";
-                submitBtn.disabled = true;
-                submitBtn.innerText = "Day Protocol Completed";
-            } else if (completedCount >= 4) {
-                subMsg.innerText = "Minimum metrics secured!";
-                subMsg.className = "text-sm font-extrabold text-nordic-accent mt-0.5";
-                submitBtn.disabled = false;
-                submitBtn.innerText = "Lock In Today's Streak";
-            } else {
-                subMsg.innerText = "Checklist requirements not met";
-                subMsg.className = "text-sm font-extrabold text-slate-400 mt-0.5";
-                submitBtn.disabled = true;
-                submitBtn.innerText = "Complete Requirements";
+            const isRecapFilled = dailyRecapText.trim().length >= 10;
+
+            if (submitBtn && msg) {
+                if(state.daily_logs.day_completed) {
+                    submitBtn.disabled = true;
+                    submitBtn.innerText = "Completed Streak locked";
+                    msg.innerText = "🔥 Streak safely written!";
+                    msg.className = "text-xs font-extrabold text-nordic-accent mt-0.5 animate-pulse";
+                } else if(completedCount >= 4 && isRecapFilled) {
+                    submitBtn.disabled = false;
+                    msg.innerText = "Retention metrics satisfied!";
+                    msg.className = "text-xs font-extrabold text-nordic-accent mt-0.5";
+                } else {
+                    submitBtn.disabled = true;
+                    const missing = [];
+                    if (completedCount < 4) missing.push(`${4 - completedCount} checks`);
+                    if (!isRecapFilled) missing.push("Active Recall Recap");
+                    msg.innerText = `Requires: ${missing.join(' & ')}`;
+                    msg.className = "text-xs font-extrabold text-slate-400 mt-0.5";
+                }
             }
         }
 
@@ -958,15 +1020,17 @@
             renderChecklist();
         }
 
-        // Finalize Day & Lock in Streak
+        // Lock In Today's Streak Complete Method
         window.submitDayComplete = function() {
             let completedCount = 0;
             CHECKLIST_KEYS.forEach(item => {
                 if(state.daily_logs.checklist_status[item.id]) completedCount++;
             });
 
-            if(completedCount < 4) {
-                showToast("Compliance failure. Save requires 4 of 5 metrics.", "error");
+            const recapLength = (state.daily_logs.recap_text || "").trim().length;
+
+            if(completedCount < 4 || recapLength < 10) {
+                showToast("Burnout checklist & active recall goals not fulfilled.", "error");
                 return;
             }
 
@@ -975,55 +1039,183 @@
             if(state.user_settings.current_streak > state.user_settings.longest_streak) {
                 state.user_settings.longest_streak = state.user_settings.current_streak;
             }
-            
+
             saveStateAndSync();
             renderChecklist();
             updateStatsUI();
-
-            showToast("Congratulations! Today's study milestones are safely locked to your database! 🔥", "success");
+            showToast("Streak secure! Milestone sync written.", "success");
         }
 
-        // SVG Interactive charts & metrics parser
-        function updateStatsUI() {
-            document.getElementById('streak-counter').innerText = `${state.user_settings.current_streak} Days`;
-            document.getElementById('stat-longest-streak').innerText = `🔥 ${state.user_settings.longest_streak} Days`;
+        window.checkLockoutRule = function() {
+            const now = getAdjustedDate();
+            const hrs = now.getHours();
+            const overlay = document.getElementById('lockout-overlay');
+            if (!overlay) return;
+            
+            if(hrs >= 21 || hrs < 5) {
+                if(localStorage.getItem(APP_ID + '_override_lockout') !== 'true') {
+                    overlay.classList.remove('hidden');
+                    overlay.classList.add('flex');
+                    if(timerState.isRunning) resetTimer();
+                }
+            } else {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+                localStorage.removeItem(APP_ID + '_override_lockout');
+            }
+        }
+
+        window.overrideLockoutForDebug = function() {
+            localStorage.setItem(APP_ID + '_override_lockout', 'true');
+            const overlay = document.getElementById('lockout-overlay');
+            if (overlay) {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }
+            showToast("Bypassing 9:00 PM Hard Stop Lockout.");
+        }
+
+        window.checkActiveBlock = function(now) {
+            const currentMinStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
+            let foundActive = null;
+
+            for(let block of FULL_PROTOCOL_SCHEDULE) {
+                if(currentMinStr >= block.start && currentMinStr < block.end) {
+                    foundActive = block;
+                    break;
+                }
+            }
+
+            if(foundActive && (!activeBlockRef || activeBlockRef.id !== foundActive.id)) {
+                activeBlockRef = foundActive;
+                setTrackingBlockUI(foundActive);
+                renderProtocolList();
+            }
+        }
+
+        window.renderProtocolList = function() {
+            const container = document.getElementById('schedule-container');
+            if (!container) return;
+            container.innerHTML = "";
+            const now = getAdjustedDate();
+            const currentMinStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
+
+            FULL_PROTOCOL_SCHEDULE.forEach(block => {
+                const isCurrent = currentMinStr >= block.start && currentMinStr < block.end;
+                const isLogged = state.daily_logs.completed_blocks.includes(block.id);
+                const stateKey = `${state.currentDateStr}_${block.id}`;
+                
+                let dynamicName = block.name;
+                let swapBtnHtml = "";
+                let isLogicTarget = block.id.startsWith('sql_') || block.key === 'logic';
+                
+                if(isLogicTarget) {
+                    const chosen = state.user_settings.swapped_logic_subjects[stateKey] || 'SQL';
+                    dynamicName = chosen === 'SQL' ? 'SQL Block (Deep Logic)' : 'Python Block (Applied Engineering)';
+                    swapBtnHtml = `<button onclick="swapSubject('${block.id}')" class="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded border border-slate-700 hover:border-nordic-accent transition">Swap to ${chosen === 'SQL'?'Python':'SQL'}</button>`;
+                }
+
+                let typeColor = "border-l-slate-700";
+                if(block.type === 'study') {
+                    typeColor = block.key === 'german' ? "border-l-nordic-german" : "border-l-nordic-active";
+                } else if(block.format === 'Guilt-Free') {
+                    typeColor = "border-l-nordic-warning";
+                }
+
+                let containerBg = isCurrent ? "bg-slate-800/40 border-slate-700 shadow-md ring-1 ring-slate-700/50" : "bg-nordic-950/40 border-slate-900";
+                if(isLogged) containerBg = "bg-nordic-900/30 border-slate-900 opacity-60";
+
+                const itemHtml = `
+                    <div class="p-3 rounded-xl border-l-4 ${typeColor} ${containerBg} border flex items-start justify-between gap-3 transition">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-xs font-bold text-slate-200 tracking-tight">${dynamicName}</span>
+                                <span class="text-[10px] font-mono bg-nordic-800 text-slate-400 px-1.5 py-0.5 rounded">${block.start} - ${block.end}</span>
+                                ${isCurrent ? '<span class="text-[10px] uppercase font-bold tracking-wider text-nordic-accent bg-nordic-accent/10 px-1.5 py-0.5 rounded animate-pulse">Active Now</span>':''}
+                                ${isLogged ? '<span class="text-[10px] uppercase font-bold text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">Logged ✓</span>':''}
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-normal max-w-sm">${block.desc}</p>
+                            <div class="pt-1 flex items-center gap-2">${swapBtnHtml}</div>
+                        </div>
+                        <div class="flex flex-col items-end justify-between self-stretch gap-2">
+                            <span class="text-[9px] font-bold font-mono text-slate-500 bg-slate-950/60 px-2 py-0.5 rounded shadow-inner whitespace-nowrap uppercase tracking-wider">${block.format}</span>
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="toggleBlockCompletion('${block.id}')" class="px-2.5 py-1 text-[10px] font-bold rounded-lg border ${isLogged ? 'bg-nordic-accent text-slate-950 border-nordic-accent' : 'bg-nordic-900 border-slate-800 text-slate-400 hover:text-slate-200'} transition" title="Manual status toggle">
+                                    ${isLogged ? 'Completed ✓' : 'Mark Completed'}
+                                </button>
+                                <button onclick="launchBlockToTimer('${block.id}')" class="px-2.5 py-1 text-[10px] font-bold bg-nordic-accent text-slate-950 rounded-lg hover:opacity-90 transition" title="Launch timer parameters">
+                                    Load Into Timer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += itemHtml;
+            });
+        }
+
+        // Stats Visualizers
+        window.updateStatsUI = function() {
+            const streakCounter = document.getElementById('streak-counter');
+            const longestStreak = document.getElementById('stat-longest-streak');
+            const totalMinsEl = document.getElementById('stat-total-minutes');
+            const chartGerman = document.getElementById('chart-min-german');
+            const chartSql = document.getElementById('chart-min-sql');
+            const chartPython = document.getElementById('chart-min-python');
+            const macroHours = document.getElementById('macro-goal-hours');
+            const macroBar = document.getElementById('macro-goal-bar');
+
+            if (streakCounter) streakCounter.innerText = `${state.user_settings.current_streak} Days`;
+            if (longestStreak) longestStreak.innerText = `🔥 ${state.user_settings.longest_streak} Days`;
 
             const gMin = state.user_settings.saved_focus_mins.german || 0;
             const sMin = state.user_settings.saved_focus_mins.sql || 0;
             const pMin = state.user_settings.saved_focus_mins.python || 0;
-            const tot = gMin + sMin + pMin;
+            const totalMins = gMin + sMin + pMin;
+            const totalHours = (totalMins / 60).toFixed(1);
 
-            document.getElementById('stat-total-minutes').innerText = `${tot} Mins`;
-            document.getElementById('chart-min-german').innerText = `${gMin}m`;
-            document.getElementById('chart-min-sql').innerText = `${sMin}m`;
-            document.getElementById('chart-min-python').innerText = `${pMin}m`;
+            if (totalMinsEl) totalMinsEl.innerText = `${totalMins} Min`;
+            if (chartGerman) chartGerman.innerText = `${gMin}m`;
+            if (chartSql) chartSql.innerText = `${sMin}m`;
+            if (chartPython) chartPython.innerText = `${pMin}m`;
 
-            // Adjust sizing bar percentages safely
-            if (tot > 0) {
-                const langPct = Math.round((gMin / tot) * 100);
-                const logicPct = Math.round(((sMin + pMin) / tot) * 100);
-                document.getElementById('stat-ratio-lang').innerText = `Language ${langPct}%`;
-                document.getElementById('stat-ratio-logic').innerText = `Logic ${logicPct}%`;
+            // Adjust cumulative 5-Month target metrics (1350 Hours Goal)
+            if (macroHours) macroHours.innerText = `${totalHours} / 1,350 Hours`;
+            const macroPct = Math.min((parseFloat(totalHours) / 1350) * 100, 100);
+            if (macroBar) macroBar.style.width = `${macroPct}%`;
 
-                document.getElementById('chart-bar-german').style.width = `${(gMin / tot) * 100}%`;
-                document.getElementById('chart-bar-sql').style.width = `${(sMin / tot) * 100}%`;
-                document.getElementById('chart-bar-python').style.width = `${(pMin / tot) * 100}%`;
+            const statRatioLang = document.getElementById('stat-ratio-lang');
+            const statRatioLogic = document.getElementById('stat-ratio-logic');
+            const barGerman = document.getElementById('chart-bar-german');
+            const barSql = document.getElementById('chart-bar-sql');
+            const barPython = document.getElementById('chart-bar-python');
+
+            if(totalMins > 0) {
+                const langPct = Math.round((gMin / totalMins) * 100);
+                const logicPct = Math.round(((sMin + pMin) / totalMins) * 100);
+                if (statRatioLang) statRatioLang.innerText = `Language ${langPct}%`;
+                if (statRatioLogic) statRatioLogic.innerText = `Logic ${logicPct}%`;
+
+                if (barGerman) barGerman.style.width = `${(gMin/totalMins)*100}%`;
+                if (barSql) barSql.style.width = `${(sMin/totalMins)*100}%`;
+                if (barPython) barPython.style.width = `${(pMin/totalMins)*100}%`;
             } else {
-                document.getElementById('stat-ratio-lang').innerText = `Language 0%`;
-                document.getElementById('stat-ratio-logic').innerText = `Logic 0%`;
-                document.getElementById('chart-bar-german').style.width = '0%';
-                document.getElementById('chart-bar-sql').style.width = '0%';
-                document.getElementById('chart-bar-python').style.width = '0%';
+                if (statRatioLang) statRatioLang.innerText = `Language 0%`;
+                if (statRatioLogic) statRatioLogic.innerText = `Logic 0%`;
+                if (barGerman) barGerman.style.width = `0%`;
+                if (barSql) barSql.style.width = `0%`;
+                if (barPython) barPython.style.width = `0%`;
             }
 
-            renderDynamicPieChart(gMin, sMin, pMin, tot);
+            renderDynamicPieChart(gMin, sMin, pMin, totalMins);
         }
 
         function renderDynamicPieChart(g, s, p, total) {
             const svg = document.getElementById('stats-pie-svg');
+            if (!svg) return;
             svg.innerHTML = "";
             if(total === 0) {
-                svg.innerHTML = `<circle cx="56" cy="56" r="45" fill="transparent" stroke="#1F2937" stroke-width="14"/>`;
+                svg.innerHTML = `<circle cx="56" cy="56" r="45" fill="transparent" stroke="#1E2640" stroke-width="14"/>`;
                 return;
             }
 
@@ -1049,14 +1241,26 @@
             });
         }
 
-        // Persistence Management (Local vs Cloud-Sync)
+        // Persistence Layers
         function loadLocalState() {
             const stored = localStorage.getItem(APP_ID + '_state');
             if (stored) {
                 const parsed = JSON.parse(stored);
-                if(parsed.user_settings) state.user_settings = parsed.user_settings;
+                if(parsed.user_settings) {
+                    state.user_settings = parsed.user_settings;
+                    // Inject milestones safeguards if missing
+                    if (!state.user_settings.milestones) {
+                        state.user_settings.milestones = JSON.parse(JSON.stringify(DEFAULT_MILESTONES));
+                    }
+                }
                 const cachedLogs = localStorage.getItem(APP_ID + '_logs_' + state.currentDateStr);
-                if(cachedLogs) state.daily_logs = JSON.parse(cachedLogs);
+                if(cachedLogs) {
+                    state.daily_logs = JSON.parse(cachedLogs);
+                    const recapInput = document.getElementById('recap-text-input');
+                    if (recapInput) {
+                        recapInput.value = state.daily_logs.recap_text || "";
+                    }
+                }
             }
         }
 
@@ -1070,28 +1274,30 @@
             if (isFirebaseConnected && firebaseAuth.currentUser) {
                 const uid = firebaseAuth.currentUser.uid;
                 try {
-                    // Rule 1 Compliant user setting collection paths
                     const settingsRef = doc(firebaseDb, "artifacts", "neuroflow-tracker", "users", uid, "settings", "user_settings");
                     await setDoc(settingsRef, state.user_settings, { merge: true });
                     
                     const logsRef = doc(firebaseDb, "artifacts", "neuroflow-tracker", "users", uid, "daily_logs", state.currentDateStr);
                     await setDoc(logsRef, state.daily_logs, { merge: true });
                 } catch(e) {
-                    console.error("Cloud Sync write failure: ", e);
+                    console.error("Firebase Sync write failure: ", e);
                 }
             }
         }
 
-        // Firebase Initialization Engine
+        // Authentication & Integration settings
         function initializeFirebaseFromLocal() {
             const savedConfig = localStorage.getItem(APP_ID + '_firebase_config');
             if(savedConfig) {
-                document.getElementById('firebase-config-input').value = savedConfig;
+                const configInput = document.getElementById('firebase-config-input');
+                if (configInput) {
+                    configInput.value = savedConfig;
+                }
                 try {
                     const parsed = JSON.parse(savedConfig);
                     initFirebase(parsed);
                 } catch(e) {
-                    showToast("Cached configuration template parsing failure.", "error");
+                    showToast("Cached Firebase configuration syntax error.", "error");
                 }
             }
         }
@@ -1106,38 +1312,48 @@
                 firebaseAuth = getAuth(firebaseApp);
                 firebaseDb = getFirestore(firebaseApp);
 
-                const email = document.getElementById('auth-email-input').value.trim();
-                const pass = document.getElementById('auth-pass-input').value.trim();
+                const emailInput = document.getElementById('auth-email-input');
+                const passInput = document.getElementById('auth-pass-input');
+                const email = emailInput ? emailInput.value.trim() : "";
+                const pass = passInput ? passInput.value.trim() : "";
 
                 if (email && pass) {
-                    updateSyncBadge(false, "Connecting to cloud...");
+                    updateSyncBadge(false, "Connecting to Cloud...");
                     if (authMode === 'register') {
                         await createUserWithEmailAndPassword(firebaseAuth, email, pass);
-                        showToast("Account successfully created & registered!", "success");
+                        showToast("Registered new profile successfully!", "success");
                     } else {
                         await signInWithEmailAndPassword(firebaseAuth, email, pass);
-                        showToast("Successfully logged in!", "success");
+                        showToast("Logged in successfully!", "success");
                     }
-                    // Clear out inputs for safety
-                    document.getElementById('auth-email-input').value = "";
-                    document.getElementById('auth-pass-input').value = "";
+                    if (emailInput) emailInput.value = "";
+                    if (passInput) passInput.value = "";
                 }
 
-                // Setup listener to monitor updates securely
                 firebaseAuth.onAuthStateChanged(async (user) => {
+                    const badge = document.getElementById('header-auth-badge');
+                    const text = document.getElementById('header-auth-text');
+                    const dot = document.getElementById('header-auth-dot');
+
                     if (user) {
                         isFirebaseConnected = true;
-                        updateSyncBadge(true, `Synced Profile`);
+                        updateSyncBadge(true, `Synced: ${user.email}`);
+                        
+                        if (badge) badge.classList.remove('hidden');
+                        if (text) text.innerText = user.email;
+                        if (dot) dot.className = "w-1.5 h-1.5 rounded-full bg-nordic-accent animate-pulse";
+
                         setupFirebaseRealtimeSync(user.uid);
                     } else {
                         isFirebaseConnected = false;
                         updateSyncBadge(false, "Offline Mode");
+                        if (badge) badge.classList.add('hidden');
                     }
                 });
             } catch(e) {
                 console.error(e);
-                updateSyncBadge(false, "Connection Failed");
-                showToast(`Firebase mismatch: ${e.message}`, "error");
+                updateSyncBadge(false, "Auth Failure");
+                showToast(`Sync Mismatch: ${e.message}`, "error");
             }
         }
 
@@ -1145,33 +1361,46 @@
             if(unsubscribeSettings) unsubscribeSettings();
             if(unsubscribeLogs) unsubscribeLogs();
 
-            // Direct simple document listeners (Rule 2 query compliance)
             const settingsRef = doc(firebaseDb, "artifacts", "neuroflow-tracker", "users", uid, "settings", "user_settings");
             unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
                 if(docSnap.exists()) {
                     state.user_settings = docSnap.data();
+                    if(!state.user_settings.milestones) {
+                        state.user_settings.milestones = JSON.parse(JSON.stringify(DEFAULT_MILESTONES));
+                    }
                     saveStateToLocal();
                     updateStatsUI();
                     renderProtocolList();
+                    renderMilestones();
                 }
-            }, (err) => console.log("Silent ignore setting sync errors", err));
+            }, (err) => console.log("Ignore settings snapshot read errors", err));
 
             const logsRef = doc(firebaseDb, "artifacts", "neuroflow-tracker", "users", uid, "daily_logs", state.currentDateStr);
             unsubscribeLogs = onSnapshot(logsRef, (docSnap) => {
                 if(docSnap.exists()) {
                     state.daily_logs = docSnap.data();
                     saveStateToLocal();
+                    
+                    const recapInput = document.getElementById('recap-text-input');
+                    if (recapInput) {
+                        recapInput.value = state.daily_logs.recap_text || "";
+                    }
+                    
                     renderChecklist();
                     updateStatsUI();
                     renderProtocolList();
                 }
-            }, (err) => console.log("Silent ignore log sync errors", err));
+            }, (err) => console.log("Ignore daily logs snapshot read errors", err));
         }
 
         window.saveFirebaseSettings = function() {
-            const rawJson = document.getElementById('firebase-config-input').value.trim();
-            const email = document.getElementById('auth-email-input').value.trim();
-            const pass = document.getElementById('auth-pass-input').value.trim();
+            const rawJsonInput = document.getElementById('firebase-config-input');
+            const emailInput = document.getElementById('auth-email-input');
+            const passInput = document.getElementById('auth-pass-input');
+
+            const rawJson = rawJsonInput ? rawJsonInput.value.trim() : "";
+            const email = emailInput ? emailInput.value.trim() : "";
+            const pass = passInput ? passInput.value.trim() : "";
 
             if(!rawJson) {
                 showToast("Please enter a valid configuration template.", "error");
@@ -1181,51 +1410,61 @@
                 const parsed = JSON.parse(rawJson);
                 localStorage.setItem(APP_ID + '_firebase_config', rawJson);
                 initFirebase(parsed);
-                closeSettingsModal();
+                showToast("Connection initialized.", "info");
             } catch(e) {
-                showToast("Invalid JSON syntax schema detected.", "error");
+                showToast("Invalid JSON formatting configuration.", "error");
             }
         }
 
         window.disconnectFirebase = function() {
             if (firebaseAuth) signOut(firebaseAuth);
             localStorage.removeItem(APP_ID + '_firebase_config');
-            document.getElementById('firebase-config-input').value = "";
-            document.getElementById('auth-email-input').value = "";
-            document.getElementById('auth-pass-input').value = "";
+            
+            const rawJsonInput = document.getElementById('firebase-config-input');
+            const emailInput = document.getElementById('auth-email-input');
+            const passInput = document.getElementById('auth-pass-input');
+
+            if (rawJsonInput) rawJsonInput.value = "";
+            if (emailInput) emailInput.value = "";
+            if (passInput) passInput.value = "";
+
             isFirebaseConnected = false;
             if(unsubscribeSettings) unsubscribeSettings();
             if(unsubscribeLogs) unsubscribeLogs();
+            
             updateSyncBadge(false, "Offline Mode");
-            closeSettingsModal();
-            showToast("Cloud profile unlinked.", "info");
+            const badge = document.getElementById('header-auth-badge');
+            if (badge) badge.classList.add('hidden');
+            
+            showToast("Cloud connection detached. Switched to offline-only state.", "info");
         }
 
         function updateSyncBadge(connected, text) {
-            const dot = document.getElementById('sync-dot');
-            const txt = document.getElementById('sync-text');
-            if(connected) {
-                dot.className = "w-2.5 h-2.5 rounded-full bg-nordic-accent animate-pulse";
-                txt.innerText = text;
-                txt.className = "text-xs font-bold text-nordic-accent";
-            } else {
-                dot.className = "w-2.5 h-2.5 rounded-full bg-slate-500";
-                txt.innerText = text;
-                txt.className = "text-xs text-slate-400";
+            const indicator = document.getElementById('sync-status-indicator');
+            const syncBadgeText = document.getElementById('sync-text');
+            const syncBadgeDot = document.getElementById('sync-dot');
+
+            if (indicator && syncBadgeText && syncBadgeDot) {
+                if(connected) {
+                    indicator.innerText = text;
+                    indicator.className = "text-xs font-bold text-nordic-accent";
+                    
+                    syncBadgeText.innerText = "Synced";
+                    syncBadgeText.className = "text-xs font-bold text-nordic-accent";
+                    syncBadgeDot.className = "w-2.5 h-2.5 rounded-full bg-nordic-accent animate-pulse";
+                } else {
+                    indicator.innerText = text;
+                    indicator.className = "text-xs font-semibold text-slate-500";
+                    
+                    syncBadgeText.innerText = "Offline Mode";
+                    syncBadgeText.className = "text-xs text-slate-400";
+                    syncBadgeDot.className = "w-2.5 h-2.5 rounded-full bg-slate-500";
+                }
             }
         }
 
-        // Quick helper UI components
-        window.openSettingsModal = function() {
-            document.getElementById('settings-modal').classList.remove('hidden');
-        }
-
-        window.closeSettingsModal = function() {
-            document.getElementById('settings-modal').classList.add('hidden');
-        }
-
         window.resetAllAppData = function() {
-            if (confirm("Are you sure you want to clear all your local logs, streaks, and progress stats? This cannot be undone.")) {
+            if(confirm("Are you sure you want to clear all local streaks, logs, and progress targets? This cannot be undone.")) {
                 localStorage.clear();
                 location.reload();
             }
@@ -1240,18 +1479,10 @@
             if (type === "error") bg = "bg-nordic-900 border-red-900/30 text-red-400";
 
             toast.className = `${toast.className} ${bg}`;
-            toast.innerHTML = `
-                <span class="text-xs font-semibold">${message}</span>
-            `;
+            toast.innerHTML = `<span class="text-xs font-semibold">${message}</span>`;
 
             document.body.appendChild(toast);
-
-            // Animate In
-            setTimeout(() => {
-                toast.classList.remove('translate-y-10', 'opacity-0');
-            }, 10);
-
-            // Animate Out
+            setTimeout(() => { toast.classList.remove('translate-y-10', 'opacity-0'); }, 10);
             setTimeout(() => {
                 toast.classList.add('translate-y-10', 'opacity-0');
                 setTimeout(() => toast.remove(), 300);
