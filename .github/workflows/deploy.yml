@@ -3,7 +3,8 @@ name: Deploy NeuroFlow to Pages
 on:
   push:
     branches:
-      - patch-3-Vite+React  # 👈 This tells GitHub to build whenever you push to patch-3
+      - 'patch-3-Vite+React'  # 👈 This tells GitHub to build whenever you push to patch-3
+  workflow_dispatch:    
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
