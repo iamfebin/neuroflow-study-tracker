@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, collection, getDocs } from "firebase/firestore";
 import { initFirebase, signOutUser, syncUserDataToCloud, APP_ID, getFirebaseInstances, signInUser, registerUser } from '../services/firebase';
 
 const NeuroFlowContext = createContext(null);
@@ -49,8 +49,50 @@ export function NeuroFlowProvider({ children }) {
 
   // --- APP USER SETTINGS & LOGS ---
   const [userSettings, setUserSettings] = useState({
-    saved_focus_mins: { german: 0, sql: 0, python: 0 }
+    saved_focus_mins: { german: 0, sql: 0, python: 0 },
+    daily_goal_mins: 240
   });
+
+  const [historyLogs, setHistoryLogs] = useState({});
+
+  const loadAllLocalLogs = useCallback(() => {
+    const localLogs = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(APP_ID + '_logs_')) {
+        const dateStr = key.replace(APP_ID + '_logs_', '');
+        try {
+          const val = localStorage.getItem(key);
+          if (val) {
+            localLogs[dateStr] = JSON.parse(val);
+          }
+        } catch (e) {
+          console.error("Error parsing cached logs for key:", key, e);
+        }
+      }
+    }
+    setHistoryLogs(localLogs);
+  }, []);
+
+  const fetchAllCloudLogs = useCallback(async (uid) => {
+    try {
+      const { db } = getFirebaseInstances();
+      if (!db) return;
+      const dailyLogsCol = collection(db, APP_ID, uid, "daily_logs");
+      const snapshot = await getDocs(dailyLogsCol);
+      const cloudLogs = {};
+      snapshot.forEach(docSnap => {
+        cloudLogs[docSnap.id] = docSnap.data();
+        localStorage.setItem(APP_ID + '_logs_' + docSnap.id, JSON.stringify(docSnap.data()));
+      });
+      setHistoryLogs(prev => ({
+        ...prev,
+        ...cloudLogs
+      }));
+    } catch (e) {
+      console.error("Error fetching historical logs from Firestore:", e);
+    }
+  }, []);
   
   const [dailyLogs, setDailyLogs] = useState({
     completed_blocks: [],
@@ -165,10 +207,27 @@ export function NeuroFlowProvider({ children }) {
     setDailyLogs(logsWithSchedule);
     saveStateToLocal(updatedSettings, logsWithSchedule, currentDateStr);
 
+    setHistoryLogs(prev => ({
+      ...prev,
+      [currentDateStr]: logsWithSchedule
+    }));
+
     if (isFirebaseConnected && currentUser) {
       syncUserDataToCloud(currentUser.uid, currentDateStr, updatedSettings, logsWithSchedule);
     }
   }, [userSettings, dailyLogs, protocolSchedule, currentDateStr, isFirebaseConnected, currentUser, saveStateToLocal]);
+
+  const updateDailyGoal = useCallback((mins) => {
+    setUserSettings(prev => {
+      const nextSettings = {
+        ...prev,
+        daily_goal_mins: mins
+      };
+      saveStateAndSync(nextSettings, dailyLogs);
+      return nextSettings;
+    });
+    showToast(`Daily study goal updated to ${mins} minutes.`);
+  }, [dailyLogs, saveStateAndSync, showToast]);
 
   // Handle Date String alignment
   useEffect(() => {
@@ -184,6 +243,7 @@ export function NeuroFlowProvider({ children }) {
   useEffect(() => {
     const todayStr = getFormattedDateStr(getAdjustedDate());
     loadLocalState(todayStr);
+    loadAllLocalLogs();
   }, []);
 
   // --- CORE FOCUS INSIGHT LOGS MATH ---
@@ -193,56 +253,51 @@ export function NeuroFlowProvider({ children }) {
     if (minutesTracked === 0 && seconds >= 10) minutesTracked = 1;
     if (minutesTracked === 0) return;
 
-    setUserSettings(prevSettings => {
-      const prevGerman = prevSettings.saved_focus_mins.german || 0;
-      const prevTech = (prevSettings.saved_focus_mins.sql || 0) + (prevSettings.saved_focus_mins.python || 0);
+    const prevGerman = userSettings.saved_focus_mins.german || 0;
+    const prevTech = (userSettings.saved_focus_mins.sql || 0) + (userSettings.saved_focus_mins.python || 0);
 
-      const subjectKey = activeBlock.key;
-      const updatedFocusMins = { ...prevSettings.saved_focus_mins };
+    const subjectKey = activeBlock.key;
+    const updatedFocusMins = { ...userSettings.saved_focus_mins };
 
-      if (subjectKey && updatedFocusMins[subjectKey] !== undefined) {
-        updatedFocusMins[subjectKey] += minutesTracked;
-      }
+    if (subjectKey && updatedFocusMins[subjectKey] !== undefined) {
+      updatedFocusMins[subjectKey] += minutesTracked;
+    }
 
-      const nextSettings = {
-        ...prevSettings,
-        saved_focus_mins: updatedFocusMins
-      };
+    const nextSettings = {
+      ...userSettings,
+      saved_focus_mins: updatedFocusMins
+    };
 
-      const currGerman = updatedFocusMins.german || 0;
-      const currTech = (updatedFocusMins.sql || 0) + (updatedFocusMins.python || 0);
+    const currGerman = updatedFocusMins.german || 0;
+    const currTech = (updatedFocusMins.sql || 0) + (updatedFocusMins.python || 0);
 
-      if (prevGerman < 300 && currGerman >= 300) {
-        showToast("Target reached for German! Switch to your other subject.", "info");
-      }
-      if (prevTech < 240 && currTech >= 240) {
-        showToast("Target reached for Technical! Switch to your other subject.", "info");
-      }
+    if (prevGerman < 300 && currGerman >= 300) {
+      showToast("Target reached for German! Switch to your other subject.", "info");
+    }
+    if (prevTech < 240 && currTech >= 240) {
+      showToast("Target reached for Technical! Switch to your other subject.", "info");
+    }
 
-      setDailyLogs(prevLogs => {
-        const nextTimerMins = { ...prevLogs.timer_logged_mins };
-        nextTimerMins[activeBlock.id] = (nextTimerMins[activeBlock.id] || 0) + minutesTracked;
+    const nextTimerMins = { ...dailyLogs.timer_logged_mins };
+    nextTimerMins[activeBlock.id] = (nextTimerMins[activeBlock.id] || 0) + minutesTracked;
 
-        let nextCompleted = [...prevLogs.completed_blocks];
-        if (!isManualSkip && !nextCompleted.includes(activeBlock.id)) {
-          nextCompleted.push(activeBlock.id);
-        }
+    let nextCompleted = [...dailyLogs.completed_blocks];
+    if (!isManualSkip && !nextCompleted.includes(activeBlock.id)) {
+      nextCompleted.push(activeBlock.id);
+    }
 
-        const nextLogs = {
-          ...prevLogs,
-          timer_logged_mins: nextTimerMins,
-          completed_blocks: nextCompleted
-        };
+    const nextLogs = {
+      ...dailyLogs,
+      timer_logged_mins: nextTimerMins,
+      completed_blocks: nextCompleted
+    };
 
-        saveStateAndSync(nextSettings, nextLogs);
-        return nextLogs;
-      });
-
-      return nextSettings;
-    });
+    setUserSettings(nextSettings);
+    setDailyLogs(nextLogs);
+    saveStateAndSync(nextSettings, nextLogs);
 
     showToast(`Logged ${minutesTracked}m of focus.`);
-  }, [activeBlock, showToast, saveStateAndSync]);
+  }, [activeBlock, userSettings, dailyLogs, showToast, saveStateAndSync]);
 
   // --- COUNTDOWN / COUNTER TIMER TICKER LOGIC ---
   const triggerIntervalAlert = useCallback((isManualSkip = false) => {
@@ -442,76 +497,72 @@ export function NeuroFlowProvider({ children }) {
     const duration = getBlockDurationMinutes(block);
     const subjectKey = block.key;
 
-    setUserSettings(prevSettings => {
-      const prevGerman = prevSettings.saved_focus_mins.german || 0;
-      const prevTech = (prevSettings.saved_focus_mins.sql || 0) + (prevSettings.saved_focus_mins.python || 0);
-      const nextMins = { ...prevSettings.saved_focus_mins };
+    const nextMins = { ...userSettings.saved_focus_mins };
+    const nextCompleted = [...dailyLogs.completed_blocks];
+    const nextManualMins = { ...dailyLogs.manual_credited_mins };
+    const nextTimerMins = { ...dailyLogs.timer_logged_mins };
 
-      setDailyLogs(prevLogs => {
-        const completedIndex = prevLogs.completed_blocks.indexOf(blockId);
-        let nextCompleted = [...prevLogs.completed_blocks];
-        const nextManualMins = { ...prevLogs.manual_credited_mins };
-        const nextTimerMins = { ...prevLogs.timer_logged_mins };
+    const completedIndex = nextCompleted.indexOf(blockId);
 
-        if (completedIndex > -1) {
-          // UNMARK COMPLETION
-          nextCompleted.splice(completedIndex, 1);
+    const prevGerman = userSettings.saved_focus_mins.german || 0;
+    const prevTech = (userSettings.saved_focus_mins.sql || 0) + (userSettings.saved_focus_mins.python || 0);
 
-          // Subtract manual credits
-          const manualCredit = nextManualMins[blockId] || 0;
-          if (block.type === 'study' && subjectKey && nextMins[subjectKey] !== undefined) {
-            nextMins[subjectKey] = Math.max(0, nextMins[subjectKey] - manualCredit);
-          }
-          delete nextManualMins[blockId];
+    if (completedIndex > -1) {
+      // UNMARK COMPLETION
+      nextCompleted.splice(completedIndex, 1);
 
-          // Subtract timer credits
-          const timerCredit = nextTimerMins[blockId] || 0;
-          if (block.type === 'study' && subjectKey && nextMins[subjectKey] !== undefined) {
-            nextMins[subjectKey] = Math.max(0, nextMins[subjectKey] - timerCredit);
-          }
-          delete nextTimerMins[blockId];
+      // Subtract manual credits
+      const manualCredit = nextManualMins[blockId] || 0;
+      if (block.type === 'study' && subjectKey && nextMins[subjectKey] !== undefined) {
+        nextMins[subjectKey] = Math.max(0, nextMins[subjectKey] - manualCredit);
+      }
+      delete nextManualMins[blockId];
 
-          showToast("Removed completed status.");
-        } else {
-          // MARK AS COMPLETED
-          nextCompleted.push(blockId);
+      // Subtract timer credits
+      const timerCredit = nextTimerMins[blockId] || 0;
+      if (block.type === 'study' && subjectKey && nextMins[subjectKey] !== undefined) {
+        nextMins[subjectKey] = Math.max(0, nextMins[subjectKey] - timerCredit);
+      }
+      delete nextTimerMins[blockId];
 
-          const timerLogged = nextTimerMins[blockId] || 0;
-          const creditToGive = Math.max(0, duration - timerLogged);
+      showToast("Removed completed status.");
+    } else {
+      // MARK AS COMPLETED
+      nextCompleted.push(blockId);
 
-          if (block.type === 'study' && subjectKey && nextMins[subjectKey] !== undefined) {
-            nextMins[subjectKey] += creditToGive;
-            nextManualMins[blockId] = creditToGive;
-          }
-          showToast(`Marked as completed. Logged remaining ${creditToGive}m.`);
-        }
+      const timerLogged = nextTimerMins[blockId] || 0;
+      const creditToGive = Math.max(0, duration - timerLogged);
 
-        const nextSettings = { ...prevSettings, saved_focus_mins: nextMins };
-        
-        const currGerman = nextMins.german || 0;
-        const currTech = (nextMins.sql || 0) + (nextMins.python || 0);
+      if (block.type === 'study' && subjectKey && nextMins[subjectKey] !== undefined) {
+        nextMins[subjectKey] += creditToGive;
+        nextManualMins[blockId] = creditToGive;
+      }
+      showToast(`Marked as completed. Logged remaining ${creditToGive}m.`);
+    }
 
-        if (prevGerman < 300 && currGerman >= 300) {
-          showToast("Target reached for German! Switch to your other subject.", "info");
-        }
-        if (prevTech < 240 && currTech >= 240) {
-          showToast("Target reached for Technical! Switch to your other subject.", "info");
-        }
+    const nextSettings = { ...userSettings, saved_focus_mins: nextMins };
+    
+    const currGerman = nextMins.german || 0;
+    const currTech = (nextMins.sql || 0) + (nextMins.python || 0);
 
-        const nextLogs = {
-          ...prevLogs,
-          completed_blocks: nextCompleted,
-          manual_credited_mins: nextManualMins,
-          timer_logged_mins: nextTimerMins
-        };
+    if (prevGerman < 300 && currGerman >= 300) {
+      showToast("Target reached for German! Switch to your other subject.", "info");
+    }
+    if (prevTech < 240 && currTech >= 240) {
+      showToast("Target reached for Technical! Switch to your other subject.", "info");
+    }
 
-        saveStateAndSync(nextSettings, nextLogs);
-        return nextLogs;
-      });
+    const nextLogs = {
+      ...dailyLogs,
+      completed_blocks: nextCompleted,
+      manual_credited_mins: nextManualMins,
+      timer_logged_mins: nextTimerMins
+    };
 
-      return prevSettings; // Handled state sync within setDailyLogs inside nested logic
-    });
-  }, [protocolSchedule, getBlockDurationMinutes, showToast, saveStateAndSync]);
+    setUserSettings(nextSettings);
+    setDailyLogs(nextLogs);
+    saveStateAndSync(nextSettings, nextLogs);
+  }, [protocolSchedule, userSettings, dailyLogs, getBlockDurationMinutes, showToast, saveStateAndSync]);
 
   // ID generator for block splitting
   const generateSplitId = useCallback((originalId, schedule) => {
@@ -787,6 +838,9 @@ export function NeuroFlowProvider({ children }) {
             }
           });
 
+          // Fetch all historical daily logs from cloud
+          fetchAllCloudLogs(uid);
+
         } else {
           setCurrentUser(null);
           setIsFirebaseConnected(false);
@@ -866,6 +920,9 @@ export function NeuroFlowProvider({ children }) {
                   setProtocolSchedule(sched);
                 }
               });
+
+              // Fetch all historical daily logs from cloud
+              fetchAllCloudLogs(uid);
             }
           });
         }).catch(() => {});
@@ -915,7 +972,9 @@ export function NeuroFlowProvider({ children }) {
       resetAllData,
       getBlockDurationMinutes,
       getBlockRemainingMinutes,
-      getAdjustedDate
+      getAdjustedDate,
+      historyLogs,
+      updateDailyGoal
     }}>
       {children}
     </NeuroFlowContext.Provider>
