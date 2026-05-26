@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroFlow Minimal</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        mono: {
+                            900: '#0a0a0a',
+                            800: '#141414',
+                            700: '#262626',
+                            600: '#404040',
+                            500: '#737373',
+                            400: '#a3a3a3',
+                            300: '#d4d4d4',
+                            200: '#e5e5e5',
+                            100: '#f5f5f5',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #404040; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #737373; }
+        input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+    </style>
+</head>
+<body class="bg-black text-mono-300 min-h-screen flex flex-col selection:bg-white selection:text-black">
+
+    <!-- Header -->
+    <header class="border-b border-mono-800 bg-black/90 backdrop-blur sticky top-0 z-40 px-4 py-3">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded bg-white flex items-center justify-center text-black font-bold tracking-tighter">
+                    NF
+                </div>
+                <h1 class="text-sm font-semibold tracking-wide text-white">NEUROFLOW</h1>
+            </div>
+            <div class="flex items-center gap-4 text-xs font-mono text-mono-500">
+                <span id="current-date-display">--/--/----</span>
+                <span id="live-clock" class="text-white">00:00:00</span>
+                <button onclick="toggleSyncModal()" class="hover:text-white transition uppercase tracking-widest border border-mono-700 px-2 py-1 rounded" id="sync-status-btn">Offline</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Late-Day Catch-Up Banner -->
+    <div id="catchup-banner" class="max-w-6xl w-full mx-auto px-4 md:px-8 mt-4 hidden">
+        <div class="bg-mono-900 border border-mono-800 text-xs px-4 py-3 rounded flex items-center justify-between text-mono-300">
+            <span id="catchup-banner-text" class="font-mono">⚠️ Target complete! 0h 0m left to start the other target.</span>
+        </div>
+    </div>
+
+    <main class="flex-grow max-w-6xl w-full mx-auto p-4 md:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
+        
+        <!-- Left: Protocol Timeline -->
+        <div class="flex flex-col gap-4 w-full">
+            <div class="flex items-center justify-between border-b border-mono-800 pb-2 mb-2">
+                <h2 class="text-xs font-bold uppercase tracking-widest text-mono-400">Daily Protocol</h2>
+                <button onclick="toggleTimeMode()" id="btn-manual-time" class="text-[10px] font-mono px-2 py-1 bg-mono-800 text-mono-300 rounded border border-mono-700 hover:bg-mono-700 transition">
+                    SYS.CLOCK
+                </button>
+            </div>
+
+            <div class="hidden flex-col gap-2 mb-4 p-3 border border-mono-800 rounded bg-mono-900" id="sim-time-panel">
+                <label class="text-[10px] uppercase text-mono-500 font-bold">Simulate Time</label>
+                <div class="flex gap-2">
+                    <input type="time" id="simulated-time-input" class="bg-black border border-mono-700 rounded px-2 py-1 text-xs font-mono text-white focus:outline-none focus:border-mono-500 w-full" value="08:00">
+                    <button onclick="applySimulatedTime()" class="px-3 py-1 bg-white text-black font-bold rounded text-xs hover:bg-mono-200 transition">SET</button>
+                </div>
+            </div>
+
+            <div class="space-y-2 max-h-[70vh] overflow-y-auto pr-2" id="schedule-container">
+                <!-- Timeline populated by JS -->
+            </div>
+        </div>
+
+        <!-- Right: Timer & Insights -->
+        <div class="flex flex-col gap-8 w-full sticky top-24">
+            
+            <!-- Focus Hub -->
+            <div class="border border-mono-800 rounded-lg p-6 bg-mono-900/50 flex flex-col items-center justify-center relative shadow-2xl">
+                <div class="text-center w-full max-w-sm">
+                    <span id="timer-protocol-badge" class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-mono-800 text-mono-400 border border-mono-700 mb-4 inline-block">
+                        IDLE
+                    </span>
+                    <h3 id="timer-block-title" class="text-white font-medium text-lg mb-1 tracking-tight">Select a Session</h3>
+                    <p id="timer-block-subtitle" class="text-xs text-mono-500 mb-8">Load a block from the timeline to begin.</p>
+                    
+                    <!-- Monochromatic Timer Circle -->
+                    <div class="relative w-48 h-48 mx-auto flex items-center justify-center mb-8">
+                        <svg class="w-full h-full transform -rotate-90 drop-shadow-md">
+                            <circle cx="96" cy="96" r="88" stroke-width="2" stroke="#262626" fill="transparent"/>
+                            <circle id="timer-svg-circle" cx="96" cy="96" r="88" stroke-width="4" stroke="#ffffff" fill="transparent"
+                                    stroke-dasharray="553" stroke-dashoffset="0" stroke-linecap="round" class="transition-all duration-300"/>
+                        </svg>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center">
+                            <span id="timer-countdown" class="text-5xl font-light tracking-tighter font-mono text-white">00:00</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-center gap-3">
+                        <button id="timer-btn-primary" onclick="toggleTimer()" disabled class="flex-grow max-w-[160px] px-4 py-3 bg-white text-black font-bold rounded hover:bg-mono-200 disabled:opacity-20 disabled:cursor-not-allowed transition text-xs tracking-wide">
+                            START
+                        </button>
+                        <button id="timer-btn-secondary" onclick="resetTimer()" disabled class="px-4 py-3 bg-mono-800 border border-mono-700 text-white font-medium rounded text-xs hover:bg-mono-700 disabled:opacity-20 disabled:cursor-not-allowed transition">
+                            RESET
+                        </button>
+                        <button id="timer-btn-skip" onclick="skipTimerInterval()" disabled class="px-4 py-3 bg-mono-800 border border-mono-700 text-mono-400 font-medium rounded text-xs hover:bg-mono-700 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition">
+                            SKIP
+                        </button>
+                    </div>
+                    <button id="timer-btn-split" onclick="splitActiveBlock()" disabled class="w-full mt-3 px-4 py-2.5 bg-black border border-mono-700 text-mono-400 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition text-xs tracking-wider uppercase font-bold">
+                        Split Session
+                    </button>
+                </div>
+            </div>
+
+            <!-- Minimal Insights -->
+            <div class="border border-mono-800 rounded-lg p-5 bg-mono-900/50">
+                <h3 class="text-xs font-bold text-white uppercase tracking-widest mb-4">Focus Insights</h3>
+                <div class="flex items-center gap-6">
+                    <div class="relative w-20 h-20 flex-shrink-0 flex items-center justify-center">
+                        <svg class="w-full h-full transform -rotate-90" id="stats-pie-svg"></svg>
+                    </div>
+                    <div class="flex-grow space-y-3">
+                        <div class="flex items-center justify-between text-xs font-mono">
+                            <span class="text-mono-400">Total Logged</span>
+                            <span id="stat-total-minutes" class="text-white font-bold">0m</span>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="flex items-center justify-between text-[10px] uppercase font-bold text-mono-500">
+                                <span>GERMAN</span>
+                                <span id="chart-min-german">0m</span>
+                            </div>
+                            <div class="flex items-center justify-between text-[10px] uppercase font-bold text-mono-500">
+                                <span>SQL</span>
+                                <span id="chart-min-sql">0m</span>
+                            </div>
+                            <div class="flex items-center justify-between text-[10px] uppercase font-bold text-mono-500">
+                                <span>PYTHON</span>
+                                <span id="chart-min-python">0m</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Cloud Sync Modal -->
+    <div id="sync-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex-col items-center justify-center p-4 hidden">
+        <div class="max-w-md w-full bg-mono-900 border border-mono-700 rounded-lg p-6 shadow-2xl relative">
+            <button onclick="toggleSyncModal()" class="absolute top-4 right-4 text-mono-500 hover:text-white">✕</button>
+            <h2 class="text-sm font-bold text-white mb-4 uppercase tracking-widest">Firebase Sync</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-mono-400 mb-1 uppercase">Firebase JSON Config</label>
+                    <textarea id="firebase-config-input" rows="4" class="w-full bg-black border border-mono-700 rounded p-2 text-xs font-mono text-mono-300 focus:outline-none focus:border-mono-500"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <input type="email" id="auth-email-input" placeholder="Email" class="bg-black border border-mono-700 text-xs p-2 rounded focus:outline-none focus:border-mono-500 text-white">
+                    <input type="password" id="auth-pass-input" placeholder="Password" class="bg-black border border-mono-700 text-xs p-2 rounded focus:outline-none focus:border-mono-500 text-white">
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2 mt-2">
+                    <button onclick="saveFirebaseSettings('signin')" class="flex-grow px-3 py-2 bg-white text-black font-bold rounded text-xs hover:bg-mono-200 transition">Sign In</button>
+                    <button onclick="saveFirebaseSettings('register')" class="flex-grow px-3 py-2 bg-mono-800 text-white font-bold rounded text-xs border border-mono-700 hover:bg-mono-700 transition">Register</button>
+                    <button onclick="disconnectFirebase()" class="px-3 py-2 bg-black border border-mono-700 text-mono-400 hover:text-white rounded text-xs transition">Disconnect</button>
+                </div>
+                <div class="pt-4 border-t border-mono-800 flex justify-between items-center mt-4">
+                    <span class="text-[10px] text-mono-500">v2.0 Monochrome Minimal</span>
+                    <button onclick="resetAllData()" class="text-[10px] text-red-500 hover:underline">Erase Local Data</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Diffuse Break Overlay -->
+    <div id="diffuse-overlay" class="fixed inset-0 bg-black/95 backdrop-blur-md z-40 flex-col items-center justify-center p-6 hidden">
+        <div class="max-w-sm w-full text-center">
+            <h2 class="text-sm font-bold text-white uppercase tracking-widest mb-2">Diffuse Break</h2>
+            <p class="text-xs text-mono-400 mb-8">Step away. Let the brain reorganize.</p>
+            <div class="text-6xl font-mono font-light text-white tracking-tighter mb-8" id="diffuse-countdown">00:00</div>
+            <button onclick="skipTimerInterval()" class="px-6 py-2 border border-mono-700 text-mono-300 font-medium rounded text-xs hover:bg-white hover:text-black transition uppercase tracking-widest">
+                Skip Break
+            </button>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast-container" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2 z-50 pointer-events-none"></div>
+
+    <script type="module">
+        import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const APP_ID = 'neuroflow-minimal';
+
+        const DEFAULT_PROTOCOL_SCHEDULE = [
+            { id: 'wake_prep', name: 'Wake & Prep', start: '07:00', end: '08:00', type: 'rest', format: 'Recovery' },
+            { id: 'sql_block_1', name: 'SQL Focus 1', start: '08:00', end: '10:30', type: 'study', key: 'sql', format: 'Pomodoro' },
+            { id: 'diffuse_break_1', name: 'Diffuse Break', start: '10:30', end: '11:00', type: 'rest', format: 'Diffuse Mode' },
+            { id: 'german_block_1', name: 'German Active', start: '11:00', end: '13:00', type: 'study', key: 'german', format: 'Pomodoro' },
+            { id: 'lunch', name: 'Lunch', start: '13:00', end: '14:00', type: 'rest', format: 'Recovery' },
+            { id: 'sql_block_2', name: 'SQL Applied', start: '14:00', end: '16:30', type: 'study', key: 'sql', format: 'Flowtime' },
+            { id: 'physical_reset', name: 'Physical Reset', start: '16:30', end: '18:00', type: 'rest', format: 'Recovery' },
+            { id: 'german_block_2', name: 'German Immersion', start: '18:00', end: '20:00', type: 'study', key: 'german', format: 'Flowtime' },
+            { id: 'dinner', name: 'Dinner', start: '20:00', end: '21:00', type: 'rest', format: 'Recovery' },
+            { id: 'leisure', name: 'Leisure', start: '21:00', end: '23:00', type: 'rest', format: 'Recovery' }
+        ];
+
+        let protocolSchedule = JSON.parse(JSON.stringify(DEFAULT_PROTOCOL_SCHEDULE));
+
+        let state = {
+            currentDateStr: "",
+            user_settings: {
+                saved_focus_mins: { german: 0, sql: 0, python: 0 }
+            },
+            daily_logs: {
+                completed_blocks: [],
+                manual_credited_mins: {},
+                timer_logged_mins: {},
+                custom_block_subjects: {},
+                custom_schedule: null
+            }
+        };
+
+        let isTimeSimulated = false;
+        let simTimeOffset = 0;
+        let activeBlockRef = null;
+        let timerState = { isRunning: false, mode: "idle", currentSeconds: 0, targetSeconds: 0, elapsedSeconds: 0, intervalId: null };
+
+        let firebaseApp = null;
+        let firebaseAuth = null;
+        let firebaseDb = null;
+        let isFirebaseConnected = false;
+        let unsubscribeSettings = null;
+        let unsubscribeLogs = null;
+
+        window.onload = function() {
+            getCurrentDateString();
+            loadLocalState();
+            initializeTimeTracking();
+            initializeFirebaseFromLocal();
+            renderProtocolList();
+            updateStatsUI();
+        };
+
+        window.toggleSyncModal = function() {
+            const modal = document.getElementById('sync-modal');
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        window.showToast = function(msg, type = "info") {
+            const container = document.getElementById('toast-container');
+            const el = document.createElement('div');
+            el.className = `px-4 py-2 rounded text-xs font-medium text-white shadow-lg transform transition-all duration-300 translate-y-4 opacity-0 ${type === 'error' ? 'bg-mono-800 border border-mono-600' : 'bg-white text-black'}`;
+            el.innerText = msg;
+            container.appendChild(el);
+            
+            requestAnimationFrame(() => {
+                el.classList.remove('translate-y-4', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                el.classList.add('translate-y-4', 'opacity-0');
+                setTimeout(() => el.remove(), 300);
+            }, 3000);
+        }
+
+        function getCurrentDateString() {
+            const d = getAdjustedDate();
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            state.currentDateStr = `${yyyy}-${mm}-${dd}`;
+            document.getElementById('current-date-display').innerText = d.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: 'numeric' });
+        }
+
+        function initializeTimeTracking() {
+            setInterval(() => {
+                const now = getAdjustedDate();
+                document.getElementById('live-clock').innerText = now.toTimeString().split(' ')[0];
+                checkActiveBlock(now);
+                updateCatchUpBanner();
+                updateSplitButtonState();
+            }, 1000);
+        }
+
+        window.toggleTimeMode = function() {
+            isTimeSimulated = !isTimeSimulated;
+            const btn = document.getElementById('btn-manual-time');
+            const panel = document.getElementById('sim-time-panel');
+            
+            if (!isTimeSimulated) {
+                simTimeOffset = 0;
+                btn.innerText = "SYS.CLOCK";
+                btn.className = "text-[10px] font-mono px-2 py-1 bg-mono-800 text-mono-300 rounded border border-mono-700 hover:bg-mono-700 transition";
+                panel.classList.add('hidden');
+                panel.classList.remove('flex');
+            } else {
+                btn.innerText = "SIMULATED";
+                btn.className = "text-[10px] font-mono px-2 py-1 bg-white text-black rounded transition font-bold";
+                panel.classList.remove('hidden');
+                panel.classList.add('flex');
+            }
+            getCurrentDateString();
+            renderProtocolList();
+        }
+
+        window.applySimulatedTime = function() {
+            const timeValue = document.getElementById('simulated-time-input').value;
+            if (!timeValue) return;
+            isTimeSimulated = true;
+            const [hours, minutes] = timeValue.split(':');
+            const targetDate = new Date();
+            targetDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+            simTimeOffset = targetDate.getTime() - new Date().getTime();
+            getCurrentDateString();
+            renderProtocolList();
+            showToast("Time simulation active");
+        }
+
+        function getAdjustedDate() {
+            return isTimeSimulated ? new Date(Date.now() + simTimeOffset) : new Date();
+        }
+
+        window.swapBlockSubject = function(blockId, newSubject) {
+            const block = protocolSchedule.find(b => b.id === blockId);
+            if (!block) return;
+            block.key = newSubject;
+            
+            if (!state.daily_logs.custom_block_subjects) state.daily_logs.custom_block_subjects = {};
+            state.daily_logs.custom_block_subjects[blockId] = newSubject;
+            
+            saveStateAndSync();
+            renderProtocolList();
+            if (activeBlockRef && activeBlockRef.id === blockId) {
+                setTrackingBlockUI(activeBlockRef);
+            }
+        }
+
+        // Focus Timer Architecture
+        window.launchBlockToTimer = function(blockId) {
+            const block = protocolSchedule.find(b => b.id === blockId);
+            if (!block) return;
+            activeBlockRef = block;
+            setTrackingBlockUI(block);
+        }
+
+        function setTrackingBlockUI(block) {
+            const isStudy = block.type === 'study';
+            let displayName = block.name;
+            if (isStudy) {
+                const subjectDisplay = (block.key || '').toUpperCase();
+                displayName = block.name.replace(/SQL|German|Python/i, subjectDisplay);
+            }
+            document.getElementById('timer-block-title').innerText = displayName;
+            document.getElementById('timer-protocol-badge').innerText = block.format;
+            document.getElementById('timer-block-subtitle').innerText = `${block.start} - ${block.end}`;
+
+            if(timerState.mode === 'idle' || !timerState.isRunning) {
+                if(block.format === 'Pomodoro') {
+                    setupTimerParameters(50 * 60, "focus");
+                } else {
+                    setupTimerParameters(0, "flow");
+                }
+                document.getElementById('timer-btn-primary').disabled = false;
+                document.getElementById('timer-btn-secondary').disabled = false;
+                document.getElementById('timer-btn-skip').disabled = false;
+            }
+        }
+
+        function setupTimerParameters(seconds, mode) {
+            timerState.mode = mode;
+            timerState.currentSeconds = seconds;
+            timerState.targetSeconds = seconds;
+            timerState.elapsedSeconds = 0;
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            const countdownEl = document.getElementById('timer-countdown');
+            const svgCircle = document.getElementById('timer-svg-circle');
+            
+            let displaySecs = timerState.currentSeconds;
+            let mins = Math.floor(displaySecs / 60);
+            let secs = displaySecs % 60;
+            const formatted = String(mins).padStart(2, '0') + ":" + String(secs).padStart(2, '0');
+            countdownEl.innerText = formatted;
+
+            // Minimalist styling: Always white, just change stroke pattern
+            if(timerState.mode === 'focus' || timerState.mode === 'break') {
+                const fraction = timerState.targetSeconds > 0 ? (timerState.currentSeconds / timerState.targetSeconds) : 1;
+                svgCircle.setAttribute('stroke-dashoffset', 553 * (1 - fraction));
+                if(timerState.mode === 'break') {
+                    const diffuse = document.getElementById('diffuse-countdown');
+                    if(diffuse) diffuse.innerText = formatted;
+                }
+            } else if(timerState.mode === 'flow') {
+                svgCircle.setAttribute('stroke-dashoffset', 0);
+            }
+        }
+
+        window.toggleTimer = function() {
+            const btn = document.getElementById('timer-btn-primary');
+            if(timerState.isRunning) {
+                clearInterval(timerState.intervalId);
+                timerState.isRunning = false;
+                btn.innerText = "RESUME";
+                btn.className = "flex-grow max-w-[160px] px-4 py-3 bg-white text-black font-bold rounded hover:bg-mono-200 transition text-xs tracking-wide";
+                updateSplitButtonState();
+            } else {
+                timerState.isRunning = true;
+                btn.innerText = "PAUSE";
+                btn.className = "flex-grow max-w-[160px] px-4 py-3 bg-mono-800 text-white font-bold rounded hover:bg-mono-700 transition text-xs tracking-wide border border-mono-700";
+                
+                timerState.intervalId = setInterval(() => {
+                    if(timerState.mode === 'focus' || timerState.mode === 'break') {
+                        if(timerState.currentSeconds > 0) {
+                            timerState.currentSeconds--;
+                            timerState.elapsedSeconds++;
+                        } else {
+                            triggerIntervalAlert();
+                        }
+                    } else if(timerState.mode === 'flow') {
+                        timerState.currentSeconds++;
+                        timerState.elapsedSeconds++;
+                    }
+                    updateTimerDisplay();
+                }, 1000);
+                updateSplitButtonState();
+            }
+        }
+
+        window.resetTimer = function() {
+            clearInterval(timerState.intervalId);
+            timerState.isRunning = false;
+            timerState.mode = "idle";
+            if(activeBlockRef) setTrackingBlockUI(activeBlockRef);
+            const btn = document.getElementById('timer-btn-primary');
+            btn.innerText = "START";
+            btn.className = "flex-grow max-w-[160px] px-4 py-3 bg-white text-black font-bold rounded hover:bg-mono-200 transition text-xs tracking-wide";
+            updateSplitButtonState();
+        }
+
+        window.skipTimerInterval = function() {
+            triggerIntervalAlert(true);
+        }
+
+        function triggerIntervalAlert(isManualSkip = false) {
+            clearInterval(timerState.intervalId);
+            timerState.isRunning = false;
+            const btn = document.getElementById('timer-btn-primary');
+            btn.innerText = "START";
+            btn.className = "flex-grow max-w-[160px] px-4 py-3 bg-white text-black font-bold rounded hover:bg-mono-200 transition text-xs tracking-wide";
+
+            if(timerState.mode === 'focus') {
+                logCompletedSessionData(timerState.elapsedSeconds, isManualSkip);
+                if (!isManualSkip) {
+                    setupTimerParameters(10 * 60, "break");
+                    openDiffuseOverlay(true);
+                } else {
+                    resetTimer();
+                }
+            } else if(timerState.mode === 'break') {
+                openDiffuseOverlay(false);
+                resetTimer();
+            } else if(timerState.mode === 'flow') {
+                logCompletedSessionData(timerState.elapsedSeconds, isManualSkip);
+                resetTimer();
+                openDiffuseOverlay(false);
+            }
+        }
+
+        function logCompletedSessionData(seconds, isManualSkip = false) {
+            if(!activeBlockRef || seconds < 10) return;
+            let minutesTracked = Math.round(seconds / 60);
+            if (minutesTracked === 0 && seconds >= 10) minutesTracked = 1; 
+            if (minutesTracked === 0) return;
+
+            const prevGerman = state.user_settings.saved_focus_mins.german || 0;
+            const prevTech = (state.user_settings.saved_focus_mins.sql || 0) + (state.user_settings.saved_focus_mins.python || 0);
+
+            const subjectKey = activeBlockRef.key;
+            if(subjectKey && state.user_settings.saved_focus_mins[subjectKey] !== undefined) {
+                state.user_settings.saved_focus_mins[subjectKey] += minutesTracked;
+            }
+
+            if (!state.daily_logs.timer_logged_mins) state.daily_logs.timer_logged_mins = {};
+            state.daily_logs.timer_logged_mins[activeBlockRef.id] = (state.daily_logs.timer_logged_mins[activeBlockRef.id] || 0) + minutesTracked;
+
+            if(!isManualSkip) {
+                if(!state.daily_logs.completed_blocks.includes(activeBlockRef.id)) {
+                    state.daily_logs.completed_blocks.push(activeBlockRef.id);
+                }
+            }
+
+            const currGerman = state.user_settings.saved_focus_mins.german || 0;
+            const currTech = (state.user_settings.saved_focus_mins.sql || 0) + (state.user_settings.saved_focus_mins.python || 0);
+
+            if (prevGerman < 300 && currGerman >= 300) {
+                showToast("Target reached for German! Switch to your other subject.", "info");
+            }
+            if (prevTech < 240 && currTech >= 240) {
+                showToast("Target reached for Technical! Switch to your other subject.", "info");
+            }
+
+            saveStateAndSync();
+            updateStatsUI();
+            renderProtocolList();
+            showToast(`Logged ${minutesTracked}m of focus.`);
+        }
+
+        window.openDiffuseOverlay = function(show) {
+            const overlay = document.getElementById('diffuse-overlay');
+            if(show) {
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
+                if(timerState.mode === 'break') {
+                    timerState.isRunning = true;
+                    timerState.intervalId = setInterval(() => {
+                        if(timerState.currentSeconds > 0) {
+                            timerState.currentSeconds--;
+                            timerState.elapsedSeconds++;
+                            updateTimerDisplay();
+                        } else {
+                            triggerIntervalAlert();
+                        }
+                    }, 1000);
+                }
+            } else {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }
+        }
+
+        window.checkActiveBlock = function(now) {
+            const currentMinStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
+            let foundActive = null;
+
+            for(let block of FULL_PROTOCOL_SCHEDULE) {
+                if(currentMinStr >= block.start && currentMinStr < block.end) {
+                    foundActive = block;
+                    break;
+                }
+            }
+
+            if(foundActive && (!activeBlockRef || activeBlockRef.id !== foundActive.id)) {
+                activeBlockRef = foundActive;
+                setTrackingBlockUI(foundActive);
+                renderProtocolList();
+            }
+        }
+
+        window.renderProtocolList = function() {
+            const container = document.getElementById('schedule-container');
+            container.innerHTML = "";
+            const now = getAdjustedDate();
+            const currentMinStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
+
+            protocolSchedule.forEach(block => {
+                const isCurrent = currentMinStr >= block.start && currentMinStr < block.end;
+                const isLogged = state.daily_logs.completed_blocks.includes(block.id);
+                const isStudy = block.type === 'study';
+
+                let dynamicName = block.name;
+                let selectHtml = "";
+
+                if (isStudy) {
+                    const subjectDisplay = (block.key || '').toUpperCase();
+                    dynamicName = block.name.replace(/SQL|German|Python/i, subjectDisplay);
+                    selectHtml = `
+                        <select onchange="swapBlockSubject('${block.id}', this.value)" class="text-[9px] bg-transparent text-mono-400 font-bold uppercase tracking-wider focus:outline-none cursor-pointer">
+                            <option value="german" ${block.key === 'german' ? 'selected' : ''}>GERMAN</option>
+                            <option value="sql" ${block.key === 'sql' ? 'selected' : ''}>SQL</option>
+                            <option value="python" ${block.key === 'python' ? 'selected' : ''}>PYTHON</option>
+                        </select>
+                    `;
+                }
+
+                let containerClasses = isCurrent ? "bg-mono-900 border-white ring-1 ring-white/20" : "bg-transparent border-mono-800";
+                if (isLogged) containerClasses = "bg-mono-900/30 border-mono-800 opacity-60";
+
+                const splitButton = isStudy ? `
+                    <button onclick="manualSplitBlock('${block.id}')" class="text-[10px] uppercase font-bold tracking-widest text-mono-500 hover:text-white transition">
+                        Split
+                    </button>
+                ` : "";
+
+                const actionButtons = `
+                    ${splitButton}
+                    <button onclick="toggleBlockCompletion('${block.id}')" class="text-[10px] uppercase font-bold tracking-widest hover:text-white transition ${isLogged ? 'text-white' : 'text-mono-500'}">
+                        ${isLogged ? 'Done' : 'Mark'}
+                    </button>
+                    <button onclick="launchBlockToTimer('${block.id}')" class="w-6 h-6 flex items-center justify-center rounded bg-mono-800 hover:bg-white hover:text-black transition text-xs text-white">
+                        ▶
+                    </button>
+                `;
+
+                const itemHtml = `
+                    <div class="p-3 rounded border flex items-center justify-between gap-3 transition-all duration-300 ${containerClasses}">
+                        <div class="flex flex-col">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-semibold ${isCurrent ? 'text-white' : 'text-mono-300'}">${dynamicName}</span>
+                                ${isStudy ? selectHtml : ''}
+                            </div>
+                            <span class="text-[10px] font-mono text-mono-500">${block.start} - ${block.end}</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            ${actionButtons}
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += itemHtml;
+            });
+        }
+
+        function getBlockDurationMinutes(block) {
+            const [sh, sm] = block.start.split(':').map(Number);
+            const [eh, em] = block.end.split(':').map(Number);
+            let startMins = sh * 60 + sm;
+            let endMins = eh * 60 + em;
+            if (endMins < startMins) endMins += 24 * 60; // handle overnight blocks
+            return endMins - startMins;
+        }
+
+        function getBlockRemainingMinutes(block) {
+            if (!block) return 0;
+            const now = getAdjustedDate();
+            const currentMin = now.getHours() * 60 + now.getMinutes();
+            
+            const [eh, em] = block.end.split(':').map(Number);
+            const endMin = eh * 60 + em;
+            
+            return endMin - currentMin;
+        }
+
+        function updateSplitButtonState() {
+            const btn = document.getElementById('timer-btn-split');
+            if (!btn) return;
+            
+            const isStudy = activeBlockRef && activeBlockRef.type === 'study';
+            const remainingMins = getBlockRemainingMinutes(activeBlockRef);
+            
+            if (timerState.isRunning && isStudy && remainingMins >= 5) {
+                btn.disabled = false;
+            } else {
+                btn.disabled = true;
+            }
+        }
+
+        function generateSplitId(originalId) {
+            let suffixCode = 'b';
+            let candidateId = `${originalId}_${suffixCode}`;
+            while (protocolSchedule.some(b => b.id === candidateId)) {
+                suffixCode = String.fromCharCode(suffixCode.charCodeAt(0) + 1);
+                candidateId = `${originalId}_${suffixCode}`;
+            }
+            return candidateId;
+        }
+
+        window.splitActiveBlock = function() {
+            if (!activeBlockRef || activeBlockRef.type !== 'study') return;
+            
+            const now = getAdjustedDate();
+            const currentMinStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
+            
+            const remainingMins = getBlockRemainingMinutes(activeBlockRef);
+            if (remainingMins < 5) {
+                showToast("Cannot split block: less than 5 minutes remaining.", "error");
+                return;
+            }
+
+            const originalEnd = activeBlockRef.end;
+            const newId = generateSplitId(activeBlockRef.id);
+            
+            activeBlockRef.end = currentMinStr;
+            
+            const newBlock = {
+                id: newId,
+                name: `${activeBlockRef.name} (Part 2)`,
+                start: currentMinStr,
+                end: originalEnd,
+                type: 'study',
+                key: activeBlockRef.key,
+                format: 'Flowtime'
+            };
+            
+            const activeIndex = protocolSchedule.findIndex(b => b.id === activeBlockRef.id);
+            if (activeIndex > -1) {
+                protocolSchedule.splice(activeIndex + 1, 0, newBlock);
+            }
+            
+            resetTimer();
+            activeBlockRef = newBlock;
+            setTrackingBlockUI(newBlock);
+            
+            saveStateAndSync();
+            renderProtocolList();
+            showToast("Session split successfully!");
+        }
+
+        window.manualSplitBlock = function(blockId) {
+            const block = protocolSchedule.find(b => b.id === blockId);
+            if (!block || block.type !== 'study') return;
+
+            const now = getAdjustedDate();
+            const currentMinStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
+
+            let defaultTime = block.start;
+            if (currentMinStr >= block.start && currentMinStr <= block.end) {
+                defaultTime = currentMinStr;
+            }
+
+            const inputTime = prompt(`Enter split time (HH:MM) between ${block.start} and ${block.end}:`, defaultTime);
+            if (!inputTime) return;
+
+            const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+            if (!timeRegex.test(inputTime)) {
+                alert("Invalid time format. Please use HH:MM.");
+                return;
+            }
+
+            const [h, m] = inputTime.split(':');
+            const paddedTime = String(h).padStart(2, '0') + ":" + String(m).padStart(2, '0');
+
+            if (paddedTime <= block.start || paddedTime >= block.end) {
+                alert(`Split time must fall strictly between ${block.start} and ${block.end}.`);
+                return;
+            }
+
+            const originalEnd = block.end;
+            const newId = generateSplitId(block.id);
+
+            block.end = paddedTime;
+
+            const newBlock = {
+                id: newId,
+                name: `${block.name} (Part 2)`,
+                start: paddedTime,
+                end: originalEnd,
+                type: 'study',
+                key: block.key,
+                format: 'Flowtime'
+            };
+
+            const activeIndex = protocolSchedule.findIndex(b => b.id === block.id);
+            if (activeIndex > -1) {
+                protocolSchedule.splice(activeIndex + 1, 0, newBlock);
+            }
+
+            if (activeBlockRef && activeBlockRef.id === block.id) {
+                resetTimer();
+                activeBlockRef = block;
+                setTrackingBlockUI(block);
+            }
+
+            saveStateAndSync();
+            renderProtocolList();
+            showToast("Block split successfully!");
+        }
+
+        function updateCatchUpBanner() {
+            const banner = document.getElementById('catchup-banner');
+            const textEl = document.getElementById('catchup-banner-text');
+            if (!banner || !textEl) return;
+
+            const germanMins = state.user_settings.saved_focus_mins.german || 0;
+            const techMins = (state.user_settings.saved_focus_mins.sql || 0) + (state.user_settings.saved_focus_mins.python || 0);
+
+            const isGermanComplete = germanMins >= 300;
+            const isTechComplete = techMins >= 240;
+
+            const showBanner = (isGermanComplete && techMins === 0) || (isTechComplete && germanMins === 0);
+
+            if (showBanner) {
+                const now = getAdjustedDate();
+                const targetTime = new Date(now);
+                targetTime.setHours(21, 0, 0, 0);
+                
+                let diffMs = targetTime.getTime() - now.getTime();
+                if (diffMs < 0) diffMs = 0;
+                
+                const diffMins = Math.floor(diffMs / 60000);
+                const hrs = Math.floor(diffMins / 60);
+                const mins = diffMins % 60;
+
+                if (isGermanComplete && techMins === 0) {
+                    textEl.innerText = `⚠️ German target complete! You have ${hrs}h ${mins}m remaining until 9:00 PM to complete your Tech target.`;
+                } else if (isTechComplete && germanMins === 0) {
+                    textEl.innerText = `⚠️ Tech target complete! You have ${hrs}h ${mins}m remaining until 9:00 PM to complete your German target.`;
+                }
+                
+                banner.classList.remove('hidden');
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+
+        window.toggleBlockCompletion = function(blockId) {
+            const block = protocolSchedule.find(b => b.id === blockId);
+            if (!block) return;
+
+            if (!state.daily_logs.manual_credited_mins) state.daily_logs.manual_credited_mins = {};
+            if (!state.daily_logs.timer_logged_mins) state.daily_logs.timer_logged_mins = {};
+
+            const index = state.daily_logs.completed_blocks.indexOf(blockId);
+            const subjectKey = block.key;
+            const duration = getBlockDurationMinutes(block);
+
+            const prevGerman = state.user_settings.saved_focus_mins.german || 0;
+            const prevTech = (state.user_settings.saved_focus_mins.sql || 0) + (state.user_settings.saved_focus_mins.python || 0);
+
+            if (index > -1) {
+                // UNMARK
+                state.daily_logs.completed_blocks.splice(index, 1);
+                
+                // Subtract any manual credit we gave it
+                const manualCredit = state.daily_logs.manual_credited_mins[blockId] || 0;
+                if (block.type === 'study' && subjectKey && state.user_settings.saved_focus_mins[subjectKey] !== undefined) {
+                    state.user_settings.saved_focus_mins[subjectKey] = Math.max(0, state.user_settings.saved_focus_mins[subjectKey] - manualCredit);
+                }
+                delete state.daily_logs.manual_credited_mins[blockId];
+
+                // Also subtract any timer-logged minutes for complete reversal if they desire
+                const timerLogged = state.daily_logs.timer_logged_mins[blockId] || 0;
+                if (block.type === 'study' && subjectKey && state.user_settings.saved_focus_mins[subjectKey] !== undefined) {
+                    state.user_settings.saved_focus_mins[subjectKey] = Math.max(0, state.user_settings.saved_focus_mins[subjectKey] - timerLogged);
+                }
+                delete state.daily_logs.timer_logged_mins[blockId];
+
+                showToast(`Removed completed status.`);
+            } else {
+                // MARK AS COMPLETED
+                state.daily_logs.completed_blocks.push(blockId);
+                
+                // If there's already some timer logged minutes, we only credit the remaining duration!
+                const timerLogged = state.daily_logs.timer_logged_mins[blockId] || 0;
+                const creditToGive = Math.max(0, duration - timerLogged);
+
+                if (block.type === 'study' && subjectKey && state.user_settings.saved_focus_mins[subjectKey] !== undefined) {
+                    state.user_settings.saved_focus_mins[subjectKey] += creditToGive;
+                    state.daily_logs.manual_credited_mins[blockId] = creditToGive;
+                }
+                showToast(`Marked as completed. Logged remaining ${creditToGive}m.`);
+            }
+
+            const currGerman = state.user_settings.saved_focus_mins.german || 0;
+            const currTech = (state.user_settings.saved_focus_mins.sql || 0) + (state.user_settings.saved_focus_mins.python || 0);
+
+            if (prevGerman < 300 && currGerman >= 300) {
+                showToast("Target reached for German! Switch to your other subject.", "info");
+            }
+            if (prevTech < 240 && currTech >= 240) {
+                showToast("Target reached for Technical! Switch to your other subject.", "info");
+            }
+
+            saveStateAndSync();
+            updateStatsUI();
+            renderProtocolList();
+        }
+
+        // Stats Visualizers
+        window.updateStatsUI = function() {
+            const gMin = state.user_settings.saved_focus_mins.german || 0;
+            const sMin = state.user_settings.saved_focus_mins.sql || 0;
+            const pMin = state.user_settings.saved_focus_mins.python || 0;
+            const totalMins = gMin + sMin + pMin;
+            
+            document.getElementById('stat-total-minutes').innerText = `${totalMins}m`;
+            document.getElementById('chart-min-german').innerText = `${gMin}m`;
+            document.getElementById('chart-min-sql').innerText = `${sMin}m`;
+            document.getElementById('chart-min-python').innerText = `${pMin}m`;
+
+            renderMinimalPieChart(gMin, sMin, pMin, totalMins);
+        }
+
+        function renderMinimalPieChart(g, s, p, total) {
+            const svg = document.getElementById('stats-pie-svg');
+            svg.innerHTML = "";
+            if(total === 0) {
+                svg.innerHTML = `<circle cx="40" cy="40" r="32" fill="transparent" stroke="#262626" stroke-width="8"/>`;
+                return;
+            }
+
+            // Minimalist Monochrome Theme Colors
+            const slices = [
+                { val: g, color: '#ffffff' }, // White
+                { val: s, color: '#a3a3a3' }, // Gray 400
+                { val: p, color: '#404040' }  // Gray 600
+            ];
+
+            let accumulatedPercent = 0;
+            slices.forEach(slice => {
+                if(slice.val === 0) return;
+                const pct = slice.val / total;
+                const strokeDash = pct * 201; // 2 * PI * 32 ~= 201
+                const offset = 201 - strokeDash + (accumulatedPercent * 201);
+                
+                const circleHtml = `
+                    <circle cx="40" cy="40" r="32" fill="transparent" stroke="${slice.color}" stroke-width="8"
+                            stroke-dasharray="201" stroke-dashoffset="${offset}" class="transition-all duration-500"/>
+                `;
+                svg.innerHTML += circleHtml;
+                accumulatedPercent -= pct;
+            });
+        }
+
+        // Persistence
+        function loadLocalState() {
+            const stored = localStorage.getItem(APP_ID + '_state');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if(parsed.user_settings) state.user_settings = parsed.user_settings;
+                const cachedLogs = localStorage.getItem(APP_ID + '_logs_' + state.currentDateStr);
+                if(cachedLogs) {
+                    state.daily_logs = JSON.parse(cachedLogs);
+                    
+                    if (!state.daily_logs.custom_block_subjects) state.daily_logs.custom_block_subjects = {};
+                    if (!state.daily_logs.manual_credited_mins) state.daily_logs.manual_credited_mins = {};
+                    if (!state.daily_logs.timer_logged_mins) state.daily_logs.timer_logged_mins = {};
+                    
+                    if (state.daily_logs.custom_schedule && state.daily_logs.custom_schedule.length > 0) {
+                        protocolSchedule = state.daily_logs.custom_schedule;
+                    } else {
+                        protocolSchedule = JSON.parse(JSON.stringify(DEFAULT_PROTOCOL_SCHEDULE));
+                    }
+                    
+                    Object.keys(state.daily_logs.custom_block_subjects).forEach(blockId => {
+                        const block = protocolSchedule.find(b => b.id === blockId);
+                        if (block) block.key = state.daily_logs.custom_block_subjects[blockId];
+                    });
+                }
+            }
+        }
+
+        function saveStateToLocal() {
+            localStorage.setItem(APP_ID + '_state', JSON.stringify({ user_settings: state.user_settings }));
+            localStorage.setItem(APP_ID + '_logs_' + state.currentDateStr, JSON.stringify(state.daily_logs));
+        }
+
+        async function saveStateAndSync() {
+            state.daily_logs.custom_schedule = protocolSchedule;
+            saveStateToLocal();
+            if (isFirebaseConnected && firebaseAuth.currentUser) {
+                const uid = firebaseAuth.currentUser.uid;
+                try {
+                    await setDoc(doc(firebaseDb, APP_ID, uid, "settings", "user_settings"), state.user_settings, { merge: true });
+                    await setDoc(doc(firebaseDb, APP_ID, uid, "daily_logs", state.currentDateStr), state.daily_logs, { merge: true });
+                } catch(e) {}
+            }
+        }
+
+        window.resetAllData = function() {
+            localStorage.clear();
+            location.reload();
+        }
+
+        // Firebase Auth
+        function initializeFirebaseFromLocal() {
+            const savedConfig = localStorage.getItem(APP_ID + '_firebase_config');
+            if(savedConfig) {
+                document.getElementById('firebase-config-input').value = savedConfig;
+                try { initFirebase(JSON.parse(savedConfig)); } catch(e) {}
+            }
+        }
+
+        async function initFirebase(config) {
+            try {
+                if (getApps().length === 0) firebaseApp = initializeApp(config);
+                else firebaseApp = getApp();
+                firebaseAuth = getAuth(firebaseApp);
+                firebaseDb = getFirestore(firebaseApp);
+
+                firebaseAuth.onAuthStateChanged((user) => {
+                    const btn = document.getElementById('sync-status-btn');
+                    if (user) {
+                        isFirebaseConnected = true;
+                        btn.innerText = "Synced";
+                        btn.classList.add('text-white', 'border-white');
+                        setupFirebaseRealtimeSync(user.uid);
+                    } else {
+                        isFirebaseConnected = false;
+                        btn.innerText = "Offline";
+                        btn.classList.remove('text-white', 'border-white');
+                    }
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        function setupFirebaseRealtimeSync(uid) {
+            if(unsubscribeSettings) unsubscribeSettings();
+            if(unsubscribeLogs) unsubscribeLogs();
+            unsubscribeSettings = onSnapshot(doc(firebaseDb, APP_ID, uid, "settings", "user_settings"), (docSnap) => {
+                if(docSnap.exists()) {
+                    state.user_settings = docSnap.data();
+                    saveStateToLocal(); updateStatsUI(); renderProtocolList();
+                }
+            });
+            unsubscribeLogs = onSnapshot(doc(firebaseDb, APP_ID, uid, "daily_logs", state.currentDateStr), (docSnap) => {
+                if(docSnap.exists()) {
+                    state.daily_logs = docSnap.data();
+                    saveStateToLocal(); updateStatsUI(); renderProtocolList();
+                }
+            });
+        }
+
+        window.saveFirebaseSettings = async function(mode) {
+            const rawJson = document.getElementById('firebase-config-input').value.trim();
+            const email = document.getElementById('auth-email-input').value.trim();
+            const pass = document.getElementById('auth-pass-input').value.trim();
+            
+            if(!rawJson) return showToast("Config required", "error");
+            try {
+                const parsed = JSON.parse(rawJson);
+                localStorage.setItem(APP_ID + '_firebase_config', rawJson);
+                await initFirebase(parsed);
+                if (email && pass) {
+                    if (mode === 'register') await createUserWithEmailAndPassword(firebaseAuth, email, pass);
+                    else await signInWithEmailAndPassword(firebaseAuth, email, pass);
+                    toggleSyncModal();
+                    showToast("Sync authenticated.");
+                }
+            } catch(e) {
+                showToast(e.message, "error");
+            }
+        }
+
+        window.disconnectFirebase = function() {
+            if (firebaseAuth) signOut(firebaseAuth);
+            localStorage.removeItem(APP_ID + '_firebase_config');
+            isFirebaseConnected = false;
+            if(unsubscribeSettings) unsubscribeSettings();
+            if(unsubscribeLogs) unsubscribeLogs();
+            document.getElementById('sync-status-btn').innerText = "Offline";
+            toggleSyncModal();
+            showToast("Disconnected from cloud.");
+        }
+    </script>
+</body>
+</html>
