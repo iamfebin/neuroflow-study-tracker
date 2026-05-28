@@ -462,32 +462,64 @@ export function NeuroFlowProvider({ children }) {
 
   // Swap study block subject key (german, sql, python)
   const swapBlockSubject = useCallback((blockId, newSubject) => {
-    setProtocolSchedule(prevSched => {
-      const nextSched = prevSched.map(b => {
-        if (b.id === blockId) {
-          return { ...b, key: newSubject };
-        }
-        return b;
-      });
+    const block = protocolSchedule.find(b => b.id === blockId);
+    if (!block || block.type !== 'study') return;
 
-      setDailyLogs(prevLogs => {
-        const nextSubjects = { ...prevLogs.custom_block_subjects, [blockId]: newSubject };
-        const nextLogs = { ...prevLogs, custom_block_subjects: nextSubjects };
-        saveStateAndSync(userSettings, nextLogs, nextSched);
-        return nextLogs;
-      });
+    const prevSubject = block.key;
+    if (prevSubject === newSubject) return;
 
-      // Keep active loaded block synchronized if swapped
-      setActiveBlock(currentActive => {
-        if (currentActive && currentActive.id === blockId) {
-          return { ...currentActive, key: newSubject };
-        }
-        return currentActive;
-      });
+    // Calculate credited minutes for this block
+    const manualCredit = dailyLogs.manual_credited_mins[blockId] || 0;
+    const timerCredit = dailyLogs.timer_logged_mins[blockId] || 0;
+    const creditedMins = manualCredit + timerCredit;
 
-      return nextSched;
+    // Update settings if there were any credited minutes
+    let nextSettings = userSettings;
+    if (creditedMins > 0) {
+      const nextMins = { ...userSettings.saved_focus_mins };
+      if (prevSubject && nextMins[prevSubject] !== undefined) {
+        nextMins[prevSubject] = Math.max(0, nextMins[prevSubject] - creditedMins);
+      }
+      if (newSubject && nextMins[newSubject] !== undefined) {
+        nextMins[newSubject] = (nextMins[newSubject] || 0) + creditedMins;
+      }
+      nextSettings = {
+        ...userSettings,
+        saved_focus_mins: nextMins
+      };
+      setUserSettings(nextSettings);
+    }
+
+    // Update protocol schedule
+    const nextSched = protocolSchedule.map(b => {
+      if (b.id === blockId) {
+        return { ...b, key: newSubject };
+      }
+      return b;
     });
-  }, [userSettings, saveStateAndSync]);
+    setProtocolSchedule(nextSched);
+
+    // Update daily logs custom block subjects
+    const nextSubjects = { ...dailyLogs.custom_block_subjects, [blockId]: newSubject };
+    const nextLogs = {
+      ...dailyLogs,
+      custom_block_subjects: nextSubjects
+    };
+    setDailyLogs(nextLogs);
+
+    // Sync all states
+    saveStateAndSync(nextSettings, nextLogs, nextSched);
+
+    // Keep active loaded block synchronized if swapped
+    setActiveBlock(currentActive => {
+      if (currentActive && currentActive.id === blockId) {
+        return { ...currentActive, key: newSubject };
+      }
+      return currentActive;
+    });
+
+    showToast(`Swapped block to ${newSubject.toUpperCase()}`);
+  }, [protocolSchedule, dailyLogs, userSettings, saveStateAndSync, showToast]);
 
   // Toggle Block Completion (Mark / Unmark)
   const toggleBlockCompletion = useCallback((blockId) => {
@@ -591,47 +623,96 @@ export function NeuroFlowProvider({ children }) {
     const originalEnd = activeBlock.end;
     const newId = generateSplitId(activeBlock.id, protocolSchedule);
 
-    setProtocolSchedule(prevSched => {
-      const activeIndex = prevSched.findIndex(b => b.id === activeBlock.id);
-      if (activeIndex === -1) return prevSched;
+    // 1. Calculate next schedule
+    const activeIndex = protocolSchedule.findIndex(b => b.id === activeBlock.id);
+    if (activeIndex === -1) return;
 
-      const updatedActive = { ...prevSched[activeIndex], end: currentMinStr };
-      
-      const newBlock = {
-        id: newId,
-        name: `${activeBlock.name} (Part 2)`,
-        start: currentMinStr,
-        end: originalEnd,
-        type: 'study',
-        key: activeBlock.key,
-        format: 'Flowtime'
-      };
+    const updatedActive = { ...protocolSchedule[activeIndex], end: currentMinStr };
+    const newBlock = {
+      id: newId,
+      name: `${activeBlock.name} (Part 2)`,
+      start: currentMinStr,
+      end: originalEnd,
+      type: 'study',
+      key: activeBlock.key,
+      format: 'Flowtime'
+    };
 
-      const nextSched = [...prevSched];
-      nextSched[activeIndex] = updatedActive;
-      nextSched.splice(activeIndex + 1, 0, newBlock);
+    const nextSched = [...protocolSchedule];
+    nextSched[activeIndex] = updatedActive;
+    nextSched.splice(activeIndex + 1, 0, newBlock);
 
-      // Stop running timer and set new block as active
-      if (timerIntervalIdRef.current) {
-        clearInterval(timerIntervalIdRef.current);
-        timerIntervalIdRef.current = null;
+    // 2. Proportional split calculation for logs
+    const D_original = getBlockDurationMinutes(activeBlock);
+    const D_updated = getBlockDurationMinutes(updatedActive);
+    const D_new = getBlockDurationMinutes(newBlock);
+
+    const wasCompleted = dailyLogs.completed_blocks.includes(activeBlock.id);
+    const nextCompleted = [...dailyLogs.completed_blocks];
+    if (wasCompleted && !nextCompleted.includes(newId)) {
+      nextCompleted.push(newId);
+    }
+
+    const nextManualMins = { ...dailyLogs.manual_credited_mins };
+    const nextTimerMins = { ...dailyLogs.timer_logged_mins };
+
+    const origManual = nextManualMins[activeBlock.id] || 0;
+    const origTimer = nextTimerMins[activeBlock.id] || 0;
+
+    if (origManual > 0 || origTimer > 0) {
+      // Split manual minutes
+      const newManualOrig = Math.round(origManual * (D_updated / D_original));
+      const newManualNew = origManual - newManualOrig;
+      if (newManualOrig > 0) {
+        nextManualMins[activeBlock.id] = newManualOrig;
+      } else {
+        delete nextManualMins[activeBlock.id];
+      }
+      if (newManualNew > 0) {
+        nextManualMins[newId] = newManualNew;
       }
 
-      setTimerState({
-        isRunning: false,
-        mode: "flow",
-        currentSeconds: 0,
-        targetSeconds: 0,
-        elapsedSeconds: 0
-      });
+      // Split timer minutes
+      const newTimerOrig = Math.round(origTimer * (D_updated / D_original));
+      const newTimerNew = origTimer - newTimerOrig;
+      if (newTimerOrig > 0) {
+        nextTimerMins[activeBlock.id] = newTimerOrig;
+      } else {
+        delete nextTimerMins[activeBlock.id];
+      }
+      if (newTimerNew > 0) {
+        nextTimerMins[newId] = newTimerNew;
+      }
+    }
 
-      setActiveBlock(newBlock);
-      saveStateAndSync(userSettings, dailyLogs, nextSched);
-      return nextSched;
+    const nextLogs = {
+      ...dailyLogs,
+      completed_blocks: nextCompleted,
+      manual_credited_mins: nextManualMins,
+      timer_logged_mins: nextTimerMins
+    };
+
+    // 3. Stop running timer and update states
+    if (timerIntervalIdRef.current) {
+      clearInterval(timerIntervalIdRef.current);
+      timerIntervalIdRef.current = null;
+    }
+
+    setTimerState({
+      isRunning: false,
+      mode: "flow",
+      currentSeconds: 0,
+      targetSeconds: 0,
+      elapsedSeconds: 0
     });
 
+    setActiveBlock(newBlock);
+    setProtocolSchedule(nextSched);
+    setDailyLogs(nextLogs);
+    saveStateAndSync(userSettings, nextLogs, nextSched);
+
     showToast("Session split successfully!");
-  }, [activeBlock, getAdjustedDate, getBlockRemainingMinutes, generateSplitId, protocolSchedule, userSettings, dailyLogs, showToast, saveStateAndSync]);
+  }, [activeBlock, getAdjustedDate, getBlockRemainingMinutes, getBlockDurationMinutes, generateSplitId, protocolSchedule, userSettings, dailyLogs, showToast, saveStateAndSync]);
 
   // Manual block split at custom typed HH:MM
   const manualSplitBlock = useCallback((blockId) => {
@@ -666,48 +747,98 @@ export function NeuroFlowProvider({ children }) {
     const originalEnd = block.end;
     const newId = generateSplitId(block.id, protocolSchedule);
 
-    setProtocolSchedule(prevSched => {
-      const idx = prevSched.findIndex(b => b.id === blockId);
-      if (idx === -1) return prevSched;
+    // 1. Calculate next schedule
+    const idx = protocolSchedule.findIndex(b => b.id === blockId);
+    if (idx === -1) return;
 
-      const updatedOriginal = { ...prevSched[idx], end: paddedTime };
-      const newBlock = {
-        id: newId,
-        name: `${block.name} (Part 2)`,
-        start: paddedTime,
-        end: originalEnd,
-        type: 'study',
-        key: block.key,
-        format: 'Flowtime'
-      };
+    const updatedOriginal = { ...protocolSchedule[idx], end: paddedTime };
+    const newBlock = {
+      id: newId,
+      name: `${block.name} (Part 2)`,
+      start: paddedTime,
+      end: originalEnd,
+      type: 'study',
+      key: block.key,
+      format: 'Flowtime'
+    };
 
-      const nextSched = [...prevSched];
-      nextSched[idx] = updatedOriginal;
-      nextSched.splice(idx + 1, 0, newBlock);
+    const nextSched = [...protocolSchedule];
+    nextSched[idx] = updatedOriginal;
+    nextSched.splice(idx + 1, 0, newBlock);
 
-      // Reset loaded timer if active split target was running
-      if (activeBlock && activeBlock.id === blockId) {
-        if (timerIntervalIdRef.current) {
-          clearInterval(timerIntervalIdRef.current);
-          timerIntervalIdRef.current = null;
-        }
+    // 2. Proportional split calculation for logs
+    const D_original = getBlockDurationMinutes(block);
+    const D_updated = getBlockDurationMinutes(updatedOriginal);
+    const D_new = getBlockDurationMinutes(newBlock);
 
-        setTimerState({
-          isRunning: false,
-          mode: "idle",
-          currentSeconds: 0,
-          targetSeconds: 0,
-          elapsedSeconds: 0
-        });
-        setActiveBlock(updatedOriginal);
+    const wasCompleted = dailyLogs.completed_blocks.includes(blockId);
+    const nextCompleted = [...dailyLogs.completed_blocks];
+    if (wasCompleted && !nextCompleted.includes(newId)) {
+      nextCompleted.push(newId);
+    }
+
+    const nextManualMins = { ...dailyLogs.manual_credited_mins };
+    const nextTimerMins = { ...dailyLogs.timer_logged_mins };
+
+    const origManual = nextManualMins[blockId] || 0;
+    const origTimer = nextTimerMins[blockId] || 0;
+
+    if (origManual > 0 || origTimer > 0) {
+      // Split manual minutes
+      const newManualOrig = Math.round(origManual * (D_updated / D_original));
+      const newManualNew = origManual - newManualOrig;
+      if (newManualOrig > 0) {
+        nextManualMins[blockId] = newManualOrig;
+      } else {
+        delete nextManualMins[blockId];
+      }
+      if (newManualNew > 0) {
+        nextManualMins[newId] = newManualNew;
       }
 
-      saveStateAndSync(userSettings, dailyLogs, nextSched);
-      return nextSched;
-    });
+      // Split timer minutes
+      const newTimerOrig = Math.round(origTimer * (D_updated / D_original));
+      const newTimerNew = origTimer - newTimerOrig;
+      if (newTimerOrig > 0) {
+        nextTimerMins[blockId] = newTimerOrig;
+      } else {
+        delete nextTimerMins[blockId];
+      }
+      if (newTimerNew > 0) {
+        nextTimerMins[newId] = newTimerNew;
+      }
+    }
+
+    const nextLogs = {
+      ...dailyLogs,
+      completed_blocks: nextCompleted,
+      manual_credited_mins: nextManualMins,
+      timer_logged_mins: nextTimerMins
+    };
+
+    // 3. Reset loaded timer if active split target was running
+    if (activeBlock && activeBlock.id === blockId) {
+      if (timerIntervalIdRef.current) {
+        clearInterval(timerIntervalIdRef.current);
+        timerIntervalIdRef.current = null;
+      }
+
+      setTimerState({
+        isRunning: false,
+        mode: "idle",
+        currentSeconds: 0,
+        targetSeconds: 0,
+        elapsedSeconds: 0
+      });
+      setActiveBlock(updatedOriginal);
+    }
+
+    setProtocolSchedule(nextSched);
+    setDailyLogs(nextLogs);
+    saveStateAndSync(userSettings, nextLogs, nextSched);
 
     showToast("Block split successfully!");
-  }, [protocolSchedule, activeBlock, getAdjustedDate, generateSplitId, userSettings, dailyLogs, showToast, saveStateAndSync]);
+  }, [protocolSchedule, activeBlock, getAdjustedDate, getBlockDurationMinutes, generateSplitId, userSettings, dailyLogs, showToast, saveStateAndSync]);
 
   // --- AUTOMATIC ACTIVE BLOCK SNIFFER ---
   const checkActiveBlock = useCallback((now) => {
