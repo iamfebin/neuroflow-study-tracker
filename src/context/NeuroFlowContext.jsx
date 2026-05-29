@@ -840,6 +840,335 @@ export function NeuroFlowProvider({ children }) {
     showToast("Block split successfully!");
   }, [protocolSchedule, activeBlock, getAdjustedDate, getBlockDurationMinutes, generateSplitId, userSettings, dailyLogs, showToast, saveStateAndSync]);
 
+  // Add a new study or rest block manually
+  const addBlock = useCallback((newBlock) => {
+    const nextSched = [...protocolSchedule];
+    nextSched.push(newBlock);
+    nextSched.sort((a, b) => a.start.localeCompare(b.start));
+
+    setProtocolSchedule(nextSched);
+    saveStateAndSync(userSettings, dailyLogs, nextSched);
+    showToast(`Added block: ${newBlock.name}`);
+  }, [protocolSchedule, userSettings, dailyLogs, saveStateAndSync, showToast]);
+
+  // Delete a block and automatically clean up credited hours and completion states
+  const deleteBlock = useCallback((blockId) => {
+    const block = protocolSchedule.find(b => b.id === blockId);
+    if (!block) return;
+
+    // Calculate credited minutes for this block
+    const manualCredit = dailyLogs.manual_credited_mins[blockId] || 0;
+    const timerCredit = dailyLogs.timer_logged_mins[blockId] || 0;
+    const creditedMins = manualCredit + timerCredit;
+
+    // Subtract from userSettings if it is a study block with credited minutes
+    let nextSettings = userSettings;
+    if (block.type === 'study' && block.key && creditedMins > 0) {
+      const nextMins = { ...userSettings.saved_focus_mins };
+      if (nextMins[block.key] !== undefined) {
+        nextMins[block.key] = Math.max(0, nextMins[block.key] - creditedMins);
+      }
+      nextSettings = {
+        ...userSettings,
+        saved_focus_mins: nextMins
+      };
+      setUserSettings(nextSettings);
+    }
+
+    // Clean up schedule timeline
+    const nextSched = protocolSchedule.filter(b => b.id !== blockId);
+    setProtocolSchedule(nextSched);
+
+    // Clean up logs completion and credit maps
+    const nextCompleted = dailyLogs.completed_blocks.filter(id => id !== blockId);
+    const nextManualMins = { ...dailyLogs.manual_credited_mins };
+    delete nextManualMins[blockId];
+    const nextTimerMins = { ...dailyLogs.timer_logged_mins };
+    delete nextTimerMins[blockId];
+    const nextSubjects = { ...dailyLogs.custom_block_subjects };
+    delete nextSubjects[blockId];
+
+    const nextLogs = {
+      ...dailyLogs,
+      completed_blocks: nextCompleted,
+      manual_credited_mins: nextManualMins,
+      timer_logged_mins: nextTimerMins,
+      custom_block_subjects: nextSubjects
+    };
+    setDailyLogs(nextLogs);
+
+    // Sync all states
+    saveStateAndSync(nextSettings, nextLogs, nextSched);
+
+    // Synchronize active block selection
+    setActiveBlock(currentActive => {
+      if (currentActive && currentActive.id === blockId) {
+        return null;
+      }
+      return currentActive;
+    });
+
+    showToast(`Deleted block: ${block.name}`);
+  }, [protocolSchedule, dailyLogs, userSettings, saveStateAndSync, showToast]);
+
+  // Edit an existing block and recalculate any study credits, duration changes, or type conversions
+  const editBlock = useCallback((blockId, updatedFields) => {
+    const block = protocolSchedule.find(b => b.id === blockId);
+    if (!block) return;
+
+    const wasStudy = block.type === 'study';
+    const isStudyNow = updatedFields.type === 'study';
+    const prevKey = block.key;
+    const newKey = updatedFields.key || prevKey || 'german';
+
+    let nextSettings = userSettings;
+    const nextManualMins = { ...dailyLogs.manual_credited_mins };
+    const nextTimerMins = { ...dailyLogs.timer_logged_mins };
+
+    const prevDuration = getBlockDurationMinutes(block);
+    const tempBlock = { ...block, ...updatedFields };
+    const newDuration = getBlockDurationMinutes(tempBlock);
+
+    // Case 1: Was study, remains study (standard time change or subject swap)
+    if (wasStudy && isStudyNow && prevKey) {
+      const origManual = nextManualMins[blockId] || 0;
+      const origTimer = nextTimerMins[blockId] || 0;
+      const totalCredited = origManual + origTimer;
+
+      if (totalCredited > 0) {
+        const nextMins = { ...nextSettings.saved_focus_mins };
+        if (nextMins[prevKey] !== undefined) {
+          nextMins[prevKey] = Math.max(0, nextMins[prevKey] - totalCredited);
+        }
+
+        let newManual = origManual;
+        if (prevDuration !== newDuration && origManual > 0) {
+          newManual = Math.max(0, newDuration - origTimer);
+          if (newManual > 0) {
+            nextManualMins[blockId] = newManual;
+          } else {
+            delete nextManualMins[blockId];
+          }
+        }
+
+        const newTotalCredited = newManual + origTimer;
+        if (nextMins[newKey] !== undefined) {
+          nextMins[newKey] = (nextMins[newKey] || 0) + newTotalCredited;
+        }
+
+        nextSettings = {
+          ...nextSettings,
+          saved_focus_mins: nextMins
+        };
+        setUserSettings(nextSettings);
+      }
+    }
+
+    // Case 2: Was study, converted to REST (deduct credited minutes)
+    if (wasStudy && !isStudyNow && prevKey) {
+      const origManual = nextManualMins[blockId] || 0;
+      const origTimer = nextTimerMins[blockId] || 0;
+      const totalCredited = origManual + origTimer;
+
+      if (totalCredited > 0) {
+        const nextMins = { ...nextSettings.saved_focus_mins };
+        if (nextMins[prevKey] !== undefined) {
+          nextMins[prevKey] = Math.max(0, nextMins[prevKey] - totalCredited);
+        }
+        nextSettings = {
+          ...nextSettings,
+          saved_focus_mins: nextMins
+        };
+        setUserSettings(nextSettings);
+      }
+      delete nextManualMins[blockId];
+      delete nextTimerMins[blockId];
+    }
+
+    // Case 3: Was REST, converted to study (credit minutes if block was completed)
+    if (!wasStudy && isStudyNow) {
+      const wasCompleted = dailyLogs.completed_blocks.includes(blockId);
+      if (wasCompleted) {
+        const nextMins = { ...nextSettings.saved_focus_mins };
+        if (nextMins[newKey] !== undefined) {
+          nextMins[newKey] = (nextMins[newKey] || 0) + newDuration;
+        }
+        nextManualMins[blockId] = newDuration;
+        nextSettings = {
+          ...nextSettings,
+          saved_focus_mins: nextMins
+        };
+        setUserSettings(nextSettings);
+      }
+    }
+
+    // Update protocol schedule and keep sorted chronologically
+    const nextSched = protocolSchedule.map(b => {
+      if (b.id === blockId) {
+        return { ...b, ...updatedFields };
+      }
+      return b;
+    });
+    nextSched.sort((a, b) => a.start.localeCompare(b.start));
+    setProtocolSchedule(nextSched);
+
+    // Keep daily logs custom subjects map in sync
+    const nextLogs = {
+      ...dailyLogs,
+      manual_credited_mins: nextManualMins,
+      timer_logged_mins: nextTimerMins
+    };
+
+    if (updatedFields.key && updatedFields.key !== prevKey) {
+      nextLogs.custom_block_subjects = {
+        ...dailyLogs.custom_block_subjects,
+        [blockId]: updatedFields.key
+      };
+    }
+    setDailyLogs(nextLogs);
+
+    // Sync all states
+    saveStateAndSync(nextSettings, nextLogs, nextSched);
+
+    // Keep active loaded block synchronized
+    setActiveBlock(currentActive => {
+      if (currentActive && currentActive.id === blockId) {
+        return { ...currentActive, ...updatedFields };
+      }
+      return currentActive;
+    });
+
+    showToast(`Updated block: ${block.name}`);
+  }, [protocolSchedule, dailyLogs, userSettings, getBlockDurationMinutes, saveStateAndSync, showToast]);
+
+  // Move block up inside schedule and swap start/end times to preserve chronological flow
+  const moveBlockUp = useCallback((blockId) => {
+    const idx = protocolSchedule.findIndex(b => b.id === blockId);
+    if (idx <= 0) return; // Already at the top or not found
+
+    const nextSched = [...protocolSchedule];
+    const block1 = nextSched[idx];
+    const block2 = nextSched[idx - 1];
+
+    const start1 = block1.start;
+    const end1 = block1.end;
+    const start2 = block2.start;
+    const end2 = block2.end;
+
+    let nextSettings = {
+      ...userSettings,
+      saved_focus_mins: { ...userSettings.saved_focus_mins }
+    };
+    const nextManualMins = { ...dailyLogs.manual_credited_mins };
+    const nextTimerMins = { ...dailyLogs.timer_logged_mins };
+
+    const adjustMins = (block, s, e) => {
+      if (block.type !== 'study' || !block.key) return;
+      const prevD = getBlockDurationMinutes(block);
+      const temp = { ...block, start: s, end: e };
+      const newD = getBlockDurationMinutes(temp);
+      if (prevD === newD) return;
+
+      const origM = nextManualMins[block.id] || 0;
+      const origT = nextTimerMins[block.id] || 0;
+      const totalC = origM + origT;
+
+      if (totalC > 0 && origM > 0) {
+        nextSettings.saved_focus_mins[block.key] = Math.max(0, nextSettings.saved_focus_mins[block.key] - totalC);
+        const newM = Math.max(0, newD - origT);
+        if (newM > 0) {
+          nextManualMins[block.id] = newM;
+        } else {
+          delete nextManualMins[block.id];
+        }
+        nextSettings.saved_focus_mins[block.key] = (nextSettings.saved_focus_mins[block.key] || 0) + (newM + origT);
+      }
+    };
+
+    adjustMins(block1, start2, end2);
+    adjustMins(block2, start1, end1);
+
+    // Swap positions and start/end times
+    nextSched[idx] = { ...block2, start: start1, end: end1 };
+    nextSched[idx - 1] = { ...block1, start: start2, end: end2 };
+
+    const nextLogs = {
+      ...dailyLogs,
+      manual_credited_mins: nextManualMins,
+      timer_logged_mins: nextTimerMins
+    };
+
+    setUserSettings(nextSettings);
+    setDailyLogs(nextLogs);
+    setProtocolSchedule(nextSched);
+    saveStateAndSync(nextSettings, nextLogs, nextSched);
+    showToast(`Moved "${block1.name}" up`);
+  }, [protocolSchedule, userSettings, dailyLogs, getBlockDurationMinutes, saveStateAndSync, showToast]);
+
+  // Move block down inside schedule and swap start/end times to preserve chronological flow
+  const moveBlockDown = useCallback((blockId) => {
+    const idx = protocolSchedule.findIndex(b => b.id === blockId);
+    if (idx === -1 || idx >= protocolSchedule.length - 1) return; // Already at the bottom or not found
+
+    const nextSched = [...protocolSchedule];
+    const block1 = nextSched[idx];
+    const block2 = nextSched[idx + 1];
+
+    const start1 = block1.start;
+    const end1 = block1.end;
+    const start2 = block2.start;
+    const end2 = block2.end;
+
+    let nextSettings = {
+      ...userSettings,
+      saved_focus_mins: { ...userSettings.saved_focus_mins }
+    };
+    const nextManualMins = { ...dailyLogs.manual_credited_mins };
+    const nextTimerMins = { ...dailyLogs.timer_logged_mins };
+
+    const adjustMins = (block, s, e) => {
+      if (block.type !== 'study' || !block.key) return;
+      const prevD = getBlockDurationMinutes(block);
+      const temp = { ...block, start: s, end: e };
+      const newD = getBlockDurationMinutes(temp);
+      if (prevD === newD) return;
+
+      const origM = nextManualMins[block.id] || 0;
+      const origT = nextTimerMins[block.id] || 0;
+      const totalC = origM + origT;
+
+      if (totalC > 0 && origM > 0) {
+        nextSettings.saved_focus_mins[block.key] = Math.max(0, nextSettings.saved_focus_mins[block.key] - totalC);
+        const newM = Math.max(0, newD - origT);
+        if (newM > 0) {
+          nextManualMins[block.id] = newM;
+        } else {
+          delete nextManualMins[block.id];
+        }
+        nextSettings.saved_focus_mins[block.key] = (nextSettings.saved_focus_mins[block.key] || 0) + (newM + origT);
+      }
+    };
+
+    adjustMins(block1, start2, end2);
+    adjustMins(block2, start1, end1);
+
+    // Swap positions and start/end times
+    nextSched[idx] = { ...block2, start: start1, end: end1 };
+    nextSched[idx + 1] = { ...block1, start: start2, end: end2 };
+
+    const nextLogs = {
+      ...dailyLogs,
+      manual_credited_mins: nextManualMins,
+      timer_logged_mins: nextTimerMins
+    };
+
+    setUserSettings(nextSettings);
+    setDailyLogs(nextLogs);
+    setProtocolSchedule(nextSched);
+    saveStateAndSync(nextSettings, nextLogs, nextSched);
+    showToast(`Moved "${block1.name}" down`);
+  }, [protocolSchedule, userSettings, dailyLogs, getBlockDurationMinutes, saveStateAndSync, showToast]);
+
   // --- AUTOMATIC ACTIVE BLOCK SNIFFER ---
   const checkActiveBlock = useCallback((now) => {
     const currentMinStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
@@ -1095,6 +1424,11 @@ export function NeuroFlowProvider({ children }) {
       manualSplitBlock,
       swapBlockSubject,
       toggleBlockCompletion,
+      addBlock,
+      deleteBlock,
+      editBlock,
+      moveBlockUp,
+      moveBlockDown,
       isFirebaseConnected,
       firebaseConfigStr,
       currentUser,

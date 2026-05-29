@@ -1,14 +1,16 @@
 import React from 'react';
 import { useNeuroFlow } from '../../context/NeuroFlowContext';
 
-export default function ProtocolItem({ block }) {
+export default function ProtocolItem({ block, onEditBlock }) {
   const {
     getAdjustedDate,
     dailyLogs,
     swapBlockSubject,
     manualSplitBlock,
     toggleBlockCompletion,
-    launchBlockToTimer
+    launchBlockToTimer,
+    moveBlockUp,
+    moveBlockDown
   } = useNeuroFlow();
 
   const now = getAdjustedDate();
@@ -34,29 +36,55 @@ export default function ProtocolItem({ block }) {
 
   return (
     <div className={`p-3 rounded border flex items-center justify-between gap-3 transition-all duration-300 ${containerClasses}`}>
-      <div className="flex flex-col">
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-semibold ${isCurrent ? 'text-white' : 'text-mono-300'}`}>
-            {dynamicName}
-          </span>
-          {isStudy && (
-            <select
-              value={block.key || 'german'}
-              onChange={(e) => swapBlockSubject(block.id, e.target.value)}
-              className="text-[9px] bg-transparent text-mono-400 font-bold uppercase tracking-wider focus:outline-none cursor-pointer"
-            >
-              <option value="german" className="bg-mono-900 text-mono-300">GERMAN</option>
-              <option value="sql" className="bg-mono-900 text-mono-300">SQL</option>
-              <option value="python" className="bg-mono-900 text-mono-300">PYTHON</option>
-            </select>
-          )}
+      <div className="flex items-center gap-2.5 flex-grow">
+        {/* Reorder Arrow Buttons */}
+        <div className="flex flex-col items-center justify-center -space-y-1 select-none pr-1.5 flex-shrink-0">
+          <button 
+            onClick={() => moveBlockUp(block.id)}
+            className="text-[10px] text-mono-600 hover:text-white transition-colors duration-200 p-0.5"
+            title="Move Up"
+          >
+            ▲
+          </button>
+          <button 
+            onClick={() => moveBlockDown(block.id)}
+            className="text-[10px] text-mono-600 hover:text-white transition-colors duration-200 p-0.5"
+            title="Move Down"
+          >
+            ▼
+          </button>
         </div>
-        <span className="text-[10px] font-mono text-mono-500">
-          {block.start} - {block.end}
-        </span>
+
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-semibold ${isCurrent ? 'text-white' : 'text-mono-300'}`}>
+              {dynamicName}
+            </span>
+            {isStudy && (
+              <select
+                value={block.key || 'german'}
+                onChange={(e) => swapBlockSubject(block.id, e.target.value)}
+                className="text-[9px] bg-transparent text-mono-400 font-bold uppercase tracking-wider focus:outline-none cursor-pointer"
+              >
+                <option value="german" className="bg-mono-900 text-mono-300">GERMAN</option>
+                <option value="sql" className="bg-mono-900 text-mono-300">SQL</option>
+                <option value="python" className="bg-mono-900 text-mono-300">PYTHON</option>
+              </select>
+            )}
+          </div>
+          <span className="text-[10px] font-mono text-mono-500">
+            {block.start} - {block.end}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
+        <button
+          onClick={() => onEditBlock(block)}
+          className="text-[10px] uppercase font-bold tracking-widest text-mono-500 hover:text-white transition"
+        >
+          Edit
+        </button>
         {isStudy && (
           <button
             onClick={() => manualSplitBlock(block.id)}

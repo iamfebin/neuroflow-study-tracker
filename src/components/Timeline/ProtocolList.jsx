@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNeuroFlow } from '../../context/NeuroFlowContext';
 import ProtocolItem from './ProtocolItem';
+import BlockModal from '../Modals/BlockModal';
 
 export default function ProtocolList() {
   const {
@@ -11,17 +12,37 @@ export default function ProtocolList() {
   } = useNeuroFlow();
 
   const [inputSimTime, setInputSimTime] = useState("08:00");
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const [blockToEdit, setBlockToEdit] = useState(null);
 
   const handleApplySimTime = (e) => {
     e.preventDefault();
     applySimulatedTime(inputSimTime);
   };
 
+  const handleOpenAddModal = () => {
+    setBlockToEdit(null);
+    setIsBlockModalOpen(true);
+  };
+
+  const handleOpenEditModal = (block) => {
+    setBlockToEdit(block);
+    setIsBlockModalOpen(true);
+  };
+
   return (
     <div className="flex flex-col gap-4 w-full">
       {/* Title & Toggle Sim Button */}
       <div className="flex items-center justify-between border-b border-mono-800 pb-2 mb-2">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-mono-400">Daily Protocol</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-mono-400">Daily Protocol</h2>
+          <button
+            onClick={handleOpenAddModal}
+            className="text-[9px] font-mono px-2 py-0.5 rounded border border-mono-750 bg-black text-mono-400 hover:text-white hover:border-white transition uppercase font-bold"
+          >
+            + Add Block
+          </button>
+        </div>
         <button
           onClick={toggleTimeMode}
           className={`text-[10px] font-mono px-2 py-1 rounded border transition ${
@@ -58,9 +79,16 @@ export default function ProtocolList() {
       {/* Timeline Scrollable Stack */}
       <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-2">
         {protocolSchedule.map((block) => (
-          <ProtocolItem key={block.id} block={block} />
+          <ProtocolItem key={block.id} block={block} onEditBlock={handleOpenEditModal} />
         ))}
       </div>
+
+      {/* Global Block Modal (Add & Edit) */}
+      <BlockModal
+        isOpen={isBlockModalOpen}
+        onClose={() => setIsBlockModalOpen(false)}
+        blockToEdit={blockToEdit}
+      />
     </div>
   );
 }
