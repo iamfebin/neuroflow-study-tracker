@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { doc, onSnapshot, collection, getDocs } from "firebase/firestore";
+import { doc, onSnapshot, collection, getDocs, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import { initFirebase, signOutUser, syncUserDataToCloud, APP_ID, getFirebaseInstances, signInUser, registerUser } from '../services/firebase';
 
 const NeuroFlowContext = createContext(null);
@@ -99,7 +99,11 @@ export function NeuroFlowProvider({ children }) {
     manual_credited_mins: {},
     timer_logged_mins: {},
     custom_block_subjects: {},
-    custom_schedule: null
+    custom_schedule: null,
+    wake_up: { target_time: "07:00", actual_time: "", on_time: true, reason: "" },
+    sleep: { actual_time: "", timing_type: "on_time", reason: "" },
+    session_details: {},
+    day_completed: false
   });
 
   const [protocolSchedule, setProtocolSchedule] = useState(() => {
@@ -122,6 +126,10 @@ export function NeuroFlowProvider({ children }) {
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(false);
   const [firebaseConfigStr, setFirebaseConfigStr] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
+  const [isOfflineSandbox, setIsOfflineSandbox] = useState(() => {
+    return localStorage.getItem(APP_ID + '_sandbox') === 'true';
+  });
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   // Unsubscribe listeners
   const unsubscribeSettingsRef = useRef(null);
@@ -166,7 +174,11 @@ export function NeuroFlowProvider({ children }) {
         manual_credited_mins: parsedLogs.manual_credited_mins || {},
         timer_logged_mins: parsedLogs.timer_logged_mins || {},
         custom_block_subjects: parsedLogs.custom_block_subjects || {},
-        custom_schedule: parsedLogs.custom_schedule || null
+        custom_schedule: parsedLogs.custom_schedule || null,
+        wake_up: parsedLogs.wake_up || { target_time: "07:00", actual_time: "", on_time: true, reason: "" },
+        sleep: parsedLogs.sleep || { actual_time: "", timing_type: "on_time", reason: "" },
+        session_details: parsedLogs.session_details || {},
+        day_completed: parsedLogs.day_completed || false
       };
       setDailyLogs(sanitLogs);
       
@@ -188,7 +200,11 @@ export function NeuroFlowProvider({ children }) {
         manual_credited_mins: {},
         timer_logged_mins: {},
         custom_block_subjects: {},
-        custom_schedule: null
+        custom_schedule: null,
+        wake_up: { target_time: "07:00", actual_time: "", on_time: true, reason: "" },
+        sleep: { actual_time: "", timing_type: "on_time", reason: "" },
+        session_details: {},
+        day_completed: false
       });
       setProtocolSchedule(JSON.parse(JSON.stringify(DEFAULT_PROTOCOL_SCHEDULE)));
     }
@@ -213,21 +229,22 @@ export function NeuroFlowProvider({ children }) {
     }));
 
     if (isFirebaseConnected && currentUser) {
-      syncUserDataToCloud(currentUser.uid, currentDateStr, updatedSettings, logsWithSchedule);
+      syncUserDataToCloud(currentUser.uid, currentDateStr, updatedSettings, logsWithSchedule)
+        .catch(err => {
+          showToast(`Cloud Sync Failed: ${err.message}`, "error");
+        });
     }
-  }, [userSettings, dailyLogs, protocolSchedule, currentDateStr, isFirebaseConnected, currentUser, saveStateToLocal]);
+  }, [userSettings, dailyLogs, protocolSchedule, currentDateStr, isFirebaseConnected, currentUser, saveStateToLocal, showToast]);
 
   const updateDailyGoal = useCallback((mins) => {
-    setUserSettings(prev => {
-      const nextSettings = {
-        ...prev,
-        daily_goal_mins: mins
-      };
-      saveStateAndSync(nextSettings, dailyLogs);
-      return nextSettings;
-    });
+    const nextSettings = {
+      ...userSettings,
+      daily_goal_mins: mins
+    };
+    setUserSettings(nextSettings);
+    saveStateAndSync(nextSettings, dailyLogs);
     showToast(`Daily study goal updated to ${mins} minutes.`);
-  }, [dailyLogs, saveStateAndSync, showToast]);
+  }, [userSettings, dailyLogs, saveStateAndSync, showToast]);
 
   // Handle Date String alignment
   useEffect(() => {
@@ -490,10 +507,25 @@ export function NeuroFlowProvider({ children }) {
       setUserSettings(nextSettings);
     }
 
+    // Helper: Rename block name according to the new subject prefix (preserving standard focus titles)
+    const renameBlockSubjectName = (oldName, newSub) => {
+      const subjectNames = {
+        german: 'German',
+        sql: 'SQL',
+        python: 'Python'
+      };
+      const newSubName = subjectNames[newSub] || newSub.charAt(0).toUpperCase() + newSub.slice(1);
+      return oldName.replace(/^(SQL|German|Python)/i, newSubName);
+    };
+
     // Update protocol schedule
     const nextSched = protocolSchedule.map(b => {
       if (b.id === blockId) {
-        return { ...b, key: newSubject };
+        return { 
+          ...b, 
+          key: newSubject,
+          name: renameBlockSubjectName(b.name, newSubject)
+        };
       }
       return b;
     });
@@ -513,7 +545,11 @@ export function NeuroFlowProvider({ children }) {
     // Keep active loaded block synchronized if swapped
     setActiveBlock(currentActive => {
       if (currentActive && currentActive.id === blockId) {
-        return { ...currentActive, key: newSubject };
+        return { 
+          ...currentActive, 
+          key: newSubject,
+          name: renameBlockSubjectName(currentActive.name, newSubject)
+        };
       }
       return currentActive;
     });
@@ -1002,14 +1038,55 @@ export function NeuroFlowProvider({ children }) {
       }
     }
 
-    // Update protocol schedule and keep sorted chronologically
-    const nextSched = protocolSchedule.map(b => {
-      if (b.id === blockId) {
-        return { ...b, ...updatedFields };
+    // Update protocol schedule and cascade adjacent times to maintain contiguity
+    const sortedCopy = [...protocolSchedule].sort((a, b) => a.start.localeCompare(b.start));
+    const idx = sortedCopy.findIndex(b => b.id === blockId);
+    
+    if (idx !== -1) {
+      const updatedBlock = { ...sortedCopy[idx], ...updatedFields };
+      sortedCopy[idx] = updatedBlock;
+
+      const timeToMins = (tStr) => {
+        const [h, m] = tStr.split(':').map(Number);
+        return h * 60 + m;
+      };
+      
+      const minsToTime = (mins) => {
+        const wrapped = (mins + 1440 * 10) % 1440;
+        const h = Math.floor(wrapped / 60);
+        const m = wrapped % 60;
+        return String(h).padStart(2, '0') + ":" + String(m).padStart(2, '0');
+      };
+      
+      const getDuration = (startStr, endStr) => {
+        let start = timeToMins(startStr);
+        let end = timeToMins(endStr);
+        if (end < start) end += 1440;
+        return end - start;
+      };
+
+      // Forward Cascade: shift succeeding blocks keeping their durations constant
+      for (let i = idx + 1; i < sortedCopy.length; i++) {
+        const prevBlock = sortedCopy[i - 1];
+        const currBlock = sortedCopy[i];
+        const dur = getDuration(currBlock.start, currBlock.end);
+        const newStart = prevBlock.end;
+        const newEnd = minsToTime(timeToMins(newStart) + dur);
+        sortedCopy[i] = { ...currBlock, start: newStart, end: newEnd };
       }
-      return b;
-    });
-    nextSched.sort((a, b) => a.start.localeCompare(b.start));
+
+      // Backward Cascade: shift preceding blocks keeping their durations constant
+      for (let i = idx - 1; i >= 0; i--) {
+        const nextBlock = sortedCopy[i + 1];
+        const currBlock = sortedCopy[i];
+        const dur = getDuration(currBlock.start, currBlock.end);
+        const newEnd = nextBlock.start;
+        const newStart = minsToTime(timeToMins(newEnd) - dur);
+        sortedCopy[i] = { ...currBlock, start: newStart, end: newEnd };
+      }
+    }
+
+    const nextSched = sortedCopy;
     setProtocolSchedule(nextSched);
 
     // Keep daily logs custom subjects map in sync
@@ -1169,6 +1246,370 @@ export function NeuroFlowProvider({ children }) {
     showToast(`Moved "${block1.name}" down`);
   }, [protocolSchedule, userSettings, dailyLogs, getBlockDurationMinutes, saveStateAndSync, showToast]);
 
+  // --- NEW BEHAVIORAL TRACKING & VAULT UPDATERS ---
+  const updateWakeUpMetrics = useCallback((targetTime, actualTime, onTime, reason) => {
+    setDailyLogs(prev => {
+      const nextLogs = {
+        ...prev,
+        wake_up: { target_time: targetTime, actual_time: actualTime, on_time: onTime, reason }
+      };
+      saveStateAndSync(userSettings, nextLogs);
+      return nextLogs;
+    });
+  }, [userSettings, saveStateAndSync]);
+
+  const updateSleepMetrics = useCallback((actualTime, timingType, reason) => {
+    setDailyLogs(prev => {
+      const nextLogs = {
+        ...prev,
+        sleep: { actual_time: actualTime, timing_type: timingType, reason }
+      };
+      saveStateAndSync(userSettings, nextLogs);
+      return nextLogs;
+    });
+  }, [userSettings, saveStateAndSync]);
+
+  const updateBlockQualitativeData = useCallback((blockId, goalAchieved, progressNotes) => {
+    setDailyLogs(prev => {
+      const nextSessionDetails = {
+        ...(prev.session_details || {}),
+        [blockId]: { goal_achieved: goalAchieved, progress_notes: progressNotes }
+      };
+      const nextLogs = {
+        ...prev,
+        session_details: nextSessionDetails
+      };
+      saveStateAndSync(userSettings, nextLogs);
+      return nextLogs;
+    });
+  }, [userSettings, saveStateAndSync]);
+
+  const updateGeminiApiKey = useCallback((apiKey) => {
+    const nextSettings = {
+      ...userSettings,
+      gemini_api_key: apiKey
+    };
+    setUserSettings(nextSettings);
+    saveStateAndSync(nextSettings, dailyLogs);
+    showToast("Gemini API key updated.");
+  }, [userSettings, dailyLogs, saveStateAndSync, showToast]);
+
+  const toggleDayCompletion = useCallback(() => {
+    setDailyLogs(prev => {
+      const nextCompleted = !prev.day_completed;
+      const nextLogs = {
+        ...prev,
+        day_completed: nextCompleted
+      };
+      saveStateAndSync(userSettings, nextLogs);
+      showToast(nextCompleted ? "Day marked as complete." : "Day marked as incomplete.");
+      return nextLogs;
+    });
+  }, [userSettings, saveStateAndSync, showToast]);
+
+  const bypassToSandbox = useCallback(() => {
+    setIsOfflineSandbox(true);
+    localStorage.setItem(APP_ID + '_sandbox', 'true');
+    showToast("Offline sandbox initialized.");
+  }, [showToast]);
+
+  const exitSandbox = useCallback(() => {
+    setIsOfflineSandbox(false);
+    localStorage.removeItem(APP_ID + '_sandbox');
+    showToast("Exited local sandbox.");
+  }, [showToast]);
+
+  const getHabitProfile = useCallback(async () => {
+    if (isFirebaseConnected && currentUser) {
+      try {
+        const { db } = getFirebaseInstances();
+        if (!db) return null;
+        const docRef = doc(db, APP_ID, currentUser.uid, "settings", "habit_profile");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          return docSnap.data();
+        }
+      } catch (err) {
+        console.error("Error fetching habit profile from Firestore:", err);
+      }
+    }
+    
+    // Sandbox / Offline fallback
+    const local = localStorage.getItem('local_habit_profile');
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {
+        console.error("Error parsing local habit profile:", e);
+      }
+    }
+    return null;
+  }, [isFirebaseConnected, currentUser]);
+
+  const saveHabitProfile = useCallback(async (profile) => {
+    if (isFirebaseConnected && currentUser) {
+      try {
+        const { db } = getFirebaseInstances();
+        if (db) {
+          const docRef = doc(db, APP_ID, currentUser.uid, "settings", "habit_profile");
+          await setDoc(docRef, profile, { merge: true });
+        }
+      } catch (err) {
+        console.error("Error writing habit profile to Firestore:", err);
+      }
+    }
+    
+    // Sync to local storage for caching/sandbox
+    localStorage.setItem('local_habit_profile', JSON.stringify(profile));
+  }, [isFirebaseConnected, currentUser]);
+
+  const clearAllCloudData = useCallback(async () => {
+    // 1. Clear locally
+    const logKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(APP_ID + '_logs_')) {
+        logKeys.push(key);
+      }
+    }
+    logKeys.forEach(k => localStorage.removeItem(k));
+    localStorage.removeItem('local_habit_profile');
+    
+    // Reset local React states
+    setHistoryLogs({});
+    setDailyLogs({
+      completed_blocks: [],
+      manual_credited_mins: {},
+      timer_logged_mins: {},
+      custom_block_subjects: {},
+      custom_schedule: null,
+      wake_up: { target_time: "07:00", actual_time: "", on_time: true, reason: "" },
+      sleep: { actual_time: "", timing_type: "on_time", reason: "" },
+      session_details: {},
+      day_completed: false
+    });
+    setProtocolSchedule(JSON.parse(JSON.stringify(DEFAULT_PROTOCOL_SCHEDULE)));
+    
+    // 2. Clear cloud if connected
+    if (isFirebaseConnected && currentUser) {
+      try {
+        const { db } = getFirebaseInstances();
+        if (db) {
+          const dailyLogsCol = collection(db, APP_ID, currentUser.uid, "daily_logs");
+          const snapshot = await getDocs(dailyLogsCol);
+          
+          const deletePromises = [];
+          snapshot.forEach(docSnap => {
+            const docRef = doc(db, APP_ID, currentUser.uid, "daily_logs", docSnap.id);
+            deletePromises.push(deleteDoc(docRef));
+          });
+          await Promise.all(deletePromises);
+          
+          const settingsRef = doc(db, APP_ID, currentUser.uid, "settings", "user_settings");
+          const profileRef = doc(db, APP_ID, currentUser.uid, "settings", "habit_profile");
+          await deleteDoc(settingsRef);
+          await deleteDoc(profileRef);
+        }
+        showToast("All cloud and local data permanently erased.");
+      } catch (err) {
+        console.error("Error clearing cloud data:", err);
+        showToast("Failed to clear some cloud documents.", "error");
+      }
+    } else {
+      showToast("All local sandbox data permanently erased.");
+    }
+  }, [isFirebaseConnected, currentUser, showToast]);
+
+  const clearDataDateRange = useCallback(async (startDateStr, endDateStr) => {
+    if (!startDateStr || !endDateStr) {
+      showToast("Please specify both start and end dates.", "error");
+      return;
+    }
+    
+    const start = new Date(startDateStr + 'T00:00:00');
+    const end = new Date(endDateStr + 'T00:00:00');
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      showToast("Invalid date range input.", "error");
+      return;
+    }
+    
+    // Identify all dates in history logs that fall within the range
+    const datesToClear = [];
+    const currentDate = new Date(start);
+    while (currentDate <= end) {
+      const yyyy = currentDate.getFullYear();
+      const mm = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(currentDate.getDate()).padStart(2, '0');
+      datesToClear.push(`${yyyy}-${mm}-${dd}`);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    // Delete locally
+    datesToClear.forEach(dateStr => {
+      localStorage.removeItem(APP_ID + '_logs_' + dateStr);
+    });
+    
+    // Reset active day if within range
+    if (datesToClear.includes(currentDateStr)) {
+      setDailyLogs({
+        completed_blocks: [],
+        manual_credited_mins: {},
+        timer_logged_mins: {},
+        custom_block_subjects: {},
+        custom_schedule: null,
+        wake_up: { target_time: "07:00", actual_time: "", on_time: true, reason: "" },
+        sleep: { actual_time: "", timing_type: "on_time", reason: "" },
+        session_details: {},
+        day_completed: false
+      });
+      setProtocolSchedule(JSON.parse(JSON.stringify(DEFAULT_PROTOCOL_SCHEDULE)));
+    }
+    
+    // Update history state
+    setHistoryLogs(prev => {
+      const next = { ...prev };
+      datesToClear.forEach(d => delete next[d]);
+      return next;
+    });
+    
+    // Delete from cloud
+    if (isFirebaseConnected && currentUser) {
+      try {
+        const { db } = getFirebaseInstances();
+        if (db) {
+          const promises = datesToClear.map(dateStr => {
+            const docRef = doc(db, APP_ID, currentUser.uid, "daily_logs", dateStr);
+            return deleteDoc(docRef);
+          });
+          await Promise.all(promises);
+        }
+        showToast(`Cleared daily logs from ${startDateStr} to ${endDateStr} on cloud and local.`);
+      } catch (err) {
+        console.error("Error clearing cloud date range:", err);
+        showToast("Failed to clear some cloud range documents.", "error");
+      }
+    } else {
+      showToast(`Cleared daily logs from ${startDateStr} to ${endDateStr} locally.`);
+    }
+  }, [currentDateStr, isFirebaseConnected, currentUser, showToast]);
+
+  const clearSpecificDates = useCallback(async (dateStrings) => {
+    if (!dateStrings || dateStrings.length === 0) {
+      showToast("No specific dates provided for deletion.", "error");
+      return;
+    }
+    
+    const validDates = dateStrings.map(d => d.trim()).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    if (validDates.length === 0) {
+      showToast("Invalid date format. Use YYYY-MM-DD.", "error");
+      return;
+    }
+    
+    // Delete locally
+    validDates.forEach(dateStr => {
+      localStorage.removeItem(APP_ID + '_logs_' + dateStr);
+    });
+    
+    // Reset active day if cleared
+    if (validDates.includes(currentDateStr)) {
+      setDailyLogs({
+        completed_blocks: [],
+        manual_credited_mins: {},
+        timer_logged_mins: {},
+        custom_block_subjects: {},
+        custom_schedule: null,
+        wake_up: { target_time: "07:00", actual_time: "", on_time: true, reason: "" },
+        sleep: { actual_time: "", timing_type: "on_time", reason: "" },
+        session_details: {},
+        day_completed: false
+      });
+      setProtocolSchedule(JSON.parse(JSON.stringify(DEFAULT_PROTOCOL_SCHEDULE)));
+    }
+    
+    // Update history state
+    setHistoryLogs(prev => {
+      const next = { ...prev };
+      validDates.forEach(d => delete next[d]);
+      return next;
+    });
+    
+    // Delete from cloud
+    if (isFirebaseConnected && currentUser) {
+      try {
+        const { db } = getFirebaseInstances();
+        if (db) {
+          const promises = validDates.map(dateStr => {
+            const docRef = doc(db, APP_ID, currentUser.uid, "daily_logs", dateStr);
+            return deleteDoc(docRef);
+          });
+          await Promise.all(promises);
+        }
+        showToast(`Cleared daily logs for: ${validDates.join(', ')}.`);
+      } catch (err) {
+        console.error("Error clearing specific cloud dates:", err);
+        showToast("Failed to clear some specific cloud documents.", "error");
+      }
+    } else {
+      showToast(`Cleared daily logs for: ${validDates.join(', ')} locally.`);
+    }
+  }, [currentDateStr, isFirebaseConnected, currentUser, showToast]);
+
+  // Context Bundler for AI RAG History
+  const getPast14DaysHistory = useCallback(() => {
+    const sortedDates = Object.keys(historyLogs).sort();
+    const last14Dates = sortedDates.slice(-14);
+    
+    return last14Dates.map(date => {
+      const log = historyLogs[date];
+      
+      // Load standard default or daily custom schedule
+      let scheduleObj = JSON.parse(JSON.stringify(DEFAULT_PROTOCOL_SCHEDULE));
+      if (log?.custom_schedule && log.custom_schedule.length > 0) {
+        scheduleObj = log.custom_schedule;
+      }
+      
+      // Helper: Rename block name according to the new subject prefix (preserving standard focus titles)
+      const renameBlockSubjectName = (oldName, newSub) => {
+        const subjectNames = {
+          german: 'German',
+          sql: 'SQL',
+          python: 'Python'
+        };
+        const newSubName = subjectNames[newSub] || newSub.charAt(0).toUpperCase() + newSub.slice(1);
+        return oldName.replace(/^(SQL|German|Python)/i, newSubName);
+      };
+      
+      // Auto-apply custom block subjects to the historical schedule sent to AI
+      const resolvedSchedule = scheduleObj.map(b => {
+        const customSub = log?.custom_block_subjects?.[b.id];
+        if (customSub) {
+          return {
+            ...b,
+            key: customSub,
+            name: renameBlockSubjectName(b.name, customSub)
+          };
+        }
+        return b;
+      });
+      
+      const studyBlocksCount = resolvedSchedule.filter(b => b.type === 'study').length;
+      const completedStudyBlocksCount = resolvedSchedule.filter(b => b.type === 'study' && log?.completed_blocks?.includes(b.id)).length;
+      
+      return {
+        date,
+        study_completed_ratio: studyBlocksCount > 0 ? `${completedStudyBlocksCount}/${studyBlocksCount}` : "0/0",
+        wake_up: log?.wake_up || null,
+        sleep: log?.sleep || null,
+        session_details: log?.session_details || {},
+        completed_blocks: log?.completed_blocks || [],
+        timer_logged_mins: log?.timer_logged_mins || {},
+        manual_credited_mins: log?.manual_credited_mins || {},
+        custom_block_subjects: log?.custom_block_subjects || {},
+        custom_schedule: resolvedSchedule
+      };
+    });
+  }, [historyLogs]);
+
   // --- AUTOMATIC ACTIVE BLOCK SNIFFER ---
   const checkActiveBlock = useCallback((now) => {
     const currentMinStr = String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0');
@@ -1248,9 +1689,19 @@ export function NeuroFlowProvider({ children }) {
   }, [showToast]);
 
   // --- CLOUD SYNC SAVERS & LOADER CONNECTORS ---
-  const handleConnectFirebase = useCallback(async (rawJson, email, password, mode) => {
+  const handleConnectFirebase = useCallback(async (rawJson, email, password, mode, geminiKey = "") => {
     try {
-      const parsed = JSON.parse(rawJson);
+      let parsed;
+      try {
+        parsed = JSON.parse(rawJson);
+      } catch (jsonErr) {
+        throw new Error("Invalid Firebase configuration format. Please double-check your JSON format.");
+      }
+      
+      if (!parsed.apiKey || !parsed.authDomain || !parsed.projectId) {
+        throw new Error("Invalid Firebase configuration format. Please double-check your JSON format.");
+      }
+
       localStorage.setItem(APP_ID + '_firebase_config', rawJson);
       setFirebaseConfigStr(rawJson);
       
@@ -1261,6 +1712,8 @@ export function NeuroFlowProvider({ children }) {
         if (user) {
           setCurrentUser(user);
           setIsFirebaseConnected(true);
+          setIsOfflineSandbox(false);
+          localStorage.removeItem(APP_ID + '_sandbox');
           showToast("Sync authenticated.");
           
           // Setup real-time document streams
@@ -1275,13 +1728,30 @@ export function NeuroFlowProvider({ children }) {
               const data = docSnap.data();
               setUserSettings(data);
               saveStateToLocal(data, dailyLogs, currentDateStr);
+            } else {
+              syncUserDataToCloud(uid, currentDateStr, userSettings, dailyLogs)
+                .catch(err => {
+                  showToast(`Cloud Setup Failed: ${err.message}`, "error");
+                });
             }
           });
           
           unsubscribeLogsRef.current = onSnapshot(doc(db, APP_ID, uid, "daily_logs", currentDateStr), (docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
-              setDailyLogs(data);
+              const sanitizedData = {
+                ...data,
+                completed_blocks: data.completed_blocks || [],
+                manual_credited_mins: data.manual_credited_mins || {},
+                timer_logged_mins: data.timer_logged_mins || {},
+                custom_block_subjects: data.custom_block_subjects || {},
+                custom_schedule: data.custom_schedule || null,
+                wake_up: data.wake_up || { target_time: "07:00", actual_time: "", on_time: true, reason: "" },
+                sleep: data.sleep || { actual_time: "", timing_type: "on_time", reason: "" },
+                session_details: data.session_details || {},
+                day_completed: data.day_completed || false
+              };
+              setDailyLogs(sanitizedData);
               
               let sched = JSON.parse(JSON.stringify(DEFAULT_PROTOCOL_SCHEDULE));
               if (data.custom_schedule && data.custom_schedule.length > 0) {
@@ -1294,13 +1764,18 @@ export function NeuroFlowProvider({ children }) {
               });
               
               setProtocolSchedule(sched);
-              saveStateToLocal(userSettings, data, currentDateStr);
+              saveStateToLocal(userSettings, sanitizedData, currentDateStr);
+            } else {
+              syncUserDataToCloud(uid, currentDateStr, userSettings, dailyLogs)
+                .catch(err => {
+                  showToast(`Cloud Setup Failed: ${err.message}`, "error");
+                });
             }
           });
 
           // Fetch all historical daily logs from cloud
           fetchAllCloudLogs(uid);
-
+          setIsAuthLoading(false);
         } else {
           setCurrentUser(null);
           setIsFirebaseConnected(false);
@@ -1310,13 +1785,41 @@ export function NeuroFlowProvider({ children }) {
       // Run action
       if (email && password) {
         if (mode === 'register') {
-          await registerUser(email, password);
+          const userCred = await registerUser(email, password);
+          const user = userCred.user;
+          const uid = user.uid;
+
+          // Sequential Account Provisioning Routine
+          const initialSettings = {
+            daily_goal_mins: 240,
+            saved_focus_mins: { german: 0, sql: 0, python: 0 },
+            gemini_api_key: geminiKey
+          };
+
+          const initialLogs = {
+            completed_blocks: [],
+            manual_credited_mins: {},
+            timer_logged_mins: {},
+            custom_block_subjects: {},
+            custom_schedule: null,
+            wake_up: { target_time: "07:00", actual_time: "", on_time: true, reason: "" },
+            sleep: { actual_time: "", timing_type: "on_time", reason: "" },
+            session_details: {},
+            day_completed: false
+          };
+
+          const { db: provisionDb } = getFirebaseInstances();
+          await setDoc(doc(provisionDb, APP_ID, uid, "settings", "user_settings"), initialSettings);
+          await setDoc(doc(provisionDb, APP_ID, uid, "daily_logs", currentDateStr), initialLogs);
+          
+          showToast("Registration completed & database provisioned.");
         } else {
           await signInUser(email, password);
         }
       }
     } catch (e) {
       showToast(e.message, "error");
+      throw e;
     }
   }, [currentDateStr, dailyLogs, userSettings, saveStateToLocal, showToast]);
 
@@ -1331,6 +1834,10 @@ export function NeuroFlowProvider({ children }) {
       setFirebaseConfigStr("");
       setCurrentUser(null);
       setIsFirebaseConnected(false);
+      
+      setIsOfflineSandbox(false);
+      localStorage.removeItem(APP_ID + '_sandbox');
+      
       showToast("Disconnected from cloud.");
     } catch (e) {
       showToast(e.message, "error");
@@ -1350,6 +1857,8 @@ export function NeuroFlowProvider({ children }) {
             if (user) {
               setCurrentUser(user);
               setIsFirebaseConnected(true);
+              setIsOfflineSandbox(false);
+              localStorage.removeItem(APP_ID + '_sandbox');
               
               const uid = user.uid;
               const { db } = getFirebaseInstances();
@@ -1361,13 +1870,31 @@ export function NeuroFlowProvider({ children }) {
                 if (docSnap.exists()) {
                   const data = docSnap.data();
                   setUserSettings(data);
+                  saveStateToLocal(data, dailyLogs, currentDateStr);
+                } else {
+                  syncUserDataToCloud(uid, currentDateStr, userSettings, dailyLogs)
+                    .catch(err => {
+                      showToast(`Cloud Setup Failed: ${err.message}`, "error");
+                    });
                 }
               });
               
               unsubscribeLogsRef.current = onSnapshot(doc(db, APP_ID, uid, "daily_logs", currentDateStr), (docSnap) => {
                 if (docSnap.exists()) {
                   const data = docSnap.data();
-                  setDailyLogs(data);
+                  const sanitizedData = {
+                    ...data,
+                    completed_blocks: data.completed_blocks || [],
+                    manual_credited_mins: data.manual_credited_mins || {},
+                    timer_logged_mins: data.timer_logged_mins || {},
+                    custom_block_subjects: data.custom_block_subjects || {},
+                    custom_schedule: data.custom_schedule || null,
+                    wake_up: data.wake_up || { target_time: "07:00", actual_time: "", on_time: true, reason: "" },
+                    sleep: data.sleep || { actual_time: "", timing_type: "on_time", reason: "" },
+                    session_details: data.session_details || {},
+                    day_completed: data.day_completed || false
+                  };
+                  setDailyLogs(sanitizedData);
                   
                   let sched = JSON.parse(JSON.stringify(DEFAULT_PROTOCOL_SCHEDULE));
                   if (data.custom_schedule && data.custom_schedule.length > 0) {
@@ -1378,15 +1905,28 @@ export function NeuroFlowProvider({ children }) {
                     if (b) b.key = data.custom_block_subjects[bId];
                   });
                   setProtocolSchedule(sched);
+                  saveStateToLocal(userSettings, sanitizedData, currentDateStr);
+                } else {
+                  syncUserDataToCloud(uid, currentDateStr, userSettings, dailyLogs)
+                    .catch(err => {
+                      showToast(`Cloud Setup Failed: ${err.message}`, "error");
+                    });
                 }
               });
 
               // Fetch all historical daily logs from cloud
               fetchAllCloudLogs(uid);
             }
+            setIsAuthLoading(false);
           });
-        }).catch(() => {});
-      } catch (err) {}
+        }).catch(() => {
+          setIsAuthLoading(false);
+        });
+      } catch (err) {
+        setIsAuthLoading(false);
+      }
+    } else {
+      setIsAuthLoading(false);
     }
 
     return () => {
@@ -1439,7 +1979,22 @@ export function NeuroFlowProvider({ children }) {
       getBlockRemainingMinutes,
       getAdjustedDate,
       historyLogs,
-      updateDailyGoal
+      updateDailyGoal,
+      updateWakeUpMetrics,
+      updateSleepMetrics,
+      updateBlockQualitativeData,
+      updateGeminiApiKey,
+      getPast14DaysHistory,
+      isOfflineSandbox,
+      isAuthLoading,
+      bypassToSandbox,
+      exitSandbox,
+      getHabitProfile,
+      saveHabitProfile,
+      clearAllCloudData,
+      clearDataDateRange,
+      clearSpecificDates,
+      toggleDayCompletion
     }}>
       {children}
     </NeuroFlowContext.Provider>

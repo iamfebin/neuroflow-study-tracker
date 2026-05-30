@@ -2,7 +2,7 @@ import React from 'react';
 import { useNeuroFlow } from '../context/NeuroFlowContext';
 
 export default function Header({ onToggleSyncModal, activeTab, onTabChange }) {
-  const { liveClock, isFirebaseConnected, getAdjustedDate } = useNeuroFlow();
+  const { liveClock, isFirebaseConnected, isOfflineSandbox, getAdjustedDate } = useNeuroFlow();
 
   const formattedDate = getAdjustedDate().toLocaleDateString(undefined, {
     month: '2-digit',
@@ -50,10 +50,10 @@ export default function Header({ onToggleSyncModal, activeTab, onTabChange }) {
           <button
             onClick={onToggleSyncModal}
             className={`hover:text-white transition uppercase tracking-widest border px-2 py-1 rounded ${
-              isFirebaseConnected ? 'text-white border-white' : 'border-mono-700'
+              isFirebaseConnected ? 'text-white border-white' : (isOfflineSandbox ? 'text-mono-300 border-mono-800' : 'border-mono-700')
             }`}
           >
-            {isFirebaseConnected ? 'Synced' : 'Offline'}
+            {isFirebaseConnected ? 'Synced' : (isOfflineSandbox ? 'Sandbox' : 'Offline')}
           </button>
         </div>
       </div>

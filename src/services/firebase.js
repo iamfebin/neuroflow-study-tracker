@@ -52,11 +52,7 @@ export async function signOutUser() {
 }
 
 export async function syncUserDataToCloud(uid, dateStr, userSettings, dailyLogs) {
-  if (!firebaseDb) return;
-  try {
-    await setDoc(doc(firebaseDb, APP_ID, uid, "settings", "user_settings"), userSettings, { merge: true });
-    await setDoc(doc(firebaseDb, APP_ID, uid, "daily_logs", dateStr), dailyLogs, { merge: true });
-  } catch (error) {
-    console.error("Error syncing data to cloud:", error);
-  }
+  if (!firebaseDb) throw new Error("Firebase database not initialized.");
+  await setDoc(doc(firebaseDb, APP_ID, uid, "settings", "user_settings"), userSettings, { merge: true });
+  await setDoc(doc(firebaseDb, APP_ID, uid, "daily_logs", dateStr), dailyLogs, { merge: true });
 }
