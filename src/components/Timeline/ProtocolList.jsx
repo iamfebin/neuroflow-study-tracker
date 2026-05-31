@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNeuroFlow } from '../../context/NeuroFlowContext';
 import ProtocolItem from './ProtocolItem';
 import BlockModal from '../Modals/BlockModal';
@@ -18,6 +18,57 @@ export default function ProtocolList() {
   const [inputSimTime, setInputSimTime] = useState("08:00");
   const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
   const [blockToEdit, setBlockToEdit] = useState(null);
+
+  // Local state buffers to protect inputs from Firestore listener overwrites/echoes
+  const [targetWakeInput, setTargetWakeInput] = useState("07:00");
+  const [actualWakeInput, setActualWakeInput] = useState("");
+  const [wakeReasonInput, setWakeReasonInput] = useState("");
+  const [actualBedtimeInput, setActualBedtimeInput] = useState("");
+  const [sleepEvaluationInput, setSleepEvaluationInput] = useState("on_time");
+  const [sleepReasonInput, setSleepReasonInput] = useState("");
+
+  // Synchronize local input buffers when global dailyLogs is updated from DB
+  useEffect(() => {
+    if (dailyLogs?.wake_up) {
+      setTargetWakeInput(dailyLogs.wake_up.target_time || "07:00");
+      setActualWakeInput(dailyLogs.wake_up.actual_time || "");
+      setWakeReasonInput(dailyLogs.wake_up.reason || "");
+    }
+    if (dailyLogs?.sleep) {
+      setActualBedtimeInput(dailyLogs.sleep.actual_time || "");
+      setSleepEvaluationInput(dailyLogs.sleep.timing_type || "on_time");
+      setSleepReasonInput(dailyLogs.sleep.reason || "");
+    }
+  }, [dailyLogs?.wake_up, dailyLogs?.sleep]);
+
+  const handleTargetWakeBlur = () => {
+    const onTime = actualWakeInput ? actualWakeInput <= targetWakeInput : true;
+    updateWakeUpMetrics(targetWakeInput, actualWakeInput, onTime, wakeReasonInput);
+  };
+
+  const handleActualWakeBlur = () => {
+    const onTime = actualWakeInput ? actualWakeInput <= targetWakeInput : true;
+    updateWakeUpMetrics(targetWakeInput, actualWakeInput, onTime, wakeReasonInput);
+  };
+
+  const handleWakeReasonBlur = () => {
+    const onTime = actualWakeInput ? actualWakeInput <= targetWakeInput : true;
+    updateWakeUpMetrics(targetWakeInput, actualWakeInput, onTime, wakeReasonInput);
+  };
+
+  const handleActualBedtimeBlur = () => {
+    updateSleepMetrics(actualBedtimeInput, sleepEvaluationInput, sleepReasonInput);
+  };
+
+  const handleSleepReasonBlur = () => {
+    updateSleepMetrics(actualBedtimeInput, sleepEvaluationInput, sleepReasonInput);
+  };
+
+  const handleSleepEvaluationChange = (e) => {
+    const val = e.target.value;
+    setSleepEvaluationInput(val);
+    updateSleepMetrics(actualBedtimeInput, val, sleepReasonInput);
+  };
 
   const handleApplySimTime = (e) => {
     e.preventDefault();
@@ -110,15 +161,9 @@ export default function ProtocolList() {
               <label className="text-[9px] uppercase font-bold text-mono-500">Target Wake</label>
               <input
                 type="time"
-                value={dailyLogs.wake_up?.target_time || "07:00"}
-                onChange={(e) => {
-                  const current = dailyLogs.wake_up || { target_time: "07:00", actual_time: "", on_time: true, reason: "" };
-                  const nextWake = { ...current, target_time: e.target.value };
-                  if (nextWake.actual_time) {
-                    nextWake.on_time = nextWake.actual_time <= nextWake.target_time;
-                  }
-                  updateWakeUpMetrics(nextWake.target_time, nextWake.actual_time, nextWake.on_time, nextWake.reason);
-                }}
+                value={targetWakeInput}
+                onChange={(e) => setTargetWakeInput(e.target.value)}
+                onBlur={handleTargetWakeBlur}
                 className="bg-black border border-mono-800 rounded px-2 py-1 text-xs font-mono text-white focus:outline-none focus:border-mono-600"
               />
             </div>
@@ -126,15 +171,9 @@ export default function ProtocolList() {
               <label className="text-[9px] uppercase font-bold text-mono-500">Actual Wake</label>
               <input
                 type="time"
-                value={dailyLogs.wake_up?.actual_time || ""}
-                onChange={(e) => {
-                  const current = dailyLogs.wake_up || { target_time: "07:00", actual_time: "", on_time: true, reason: "" };
-                  const nextWake = { ...current, actual_time: e.target.value };
-                  if (nextWake.target_time) {
-                    nextWake.on_time = nextWake.actual_time <= nextWake.target_time;
-                  }
-                  updateWakeUpMetrics(nextWake.target_time, nextWake.actual_time, nextWake.on_time, nextWake.reason);
-                }}
+                value={actualWakeInput}
+                onChange={(e) => setActualWakeInput(e.target.value)}
+                onBlur={handleActualWakeBlur}
                 className="bg-black border border-mono-800 rounded px-2 py-1 text-xs font-mono text-white focus:outline-none focus:border-mono-600"
               />
             </div>
@@ -145,11 +184,9 @@ export default function ProtocolList() {
             <div className="flex flex-col gap-1 mt-2 transition-all duration-300 animate-slideDown">
               <label className="text-[9px] uppercase font-bold text-mono-500">Why did you sleep past target?</label>
               <textarea
-                value={dailyLogs.wake_up?.reason || ""}
-                onChange={(e) => {
-                  const current = dailyLogs.wake_up || { target_time: "07:00", actual_time: "", on_time: true, reason: "" };
-                  updateWakeUpMetrics(current.target_time, current.actual_time, current.on_time, e.target.value);
-                }}
+                value={wakeReasonInput}
+                onChange={(e) => setWakeReasonInput(e.target.value)}
+                onBlur={handleWakeReasonBlur}
                 rows="2"
                 placeholder="Reason (e.g. late screen time, snoozed alarm)..."
                 className="w-full bg-black border border-mono-800 rounded p-1.5 text-xs text-white font-mono focus:outline-none focus:border-mono-600"
@@ -180,22 +217,17 @@ export default function ProtocolList() {
               <label className="text-[9px] uppercase font-bold text-mono-500">Actual Bedtime</label>
               <input
                 type="time"
-                value={dailyLogs.sleep?.actual_time || ""}
-                onChange={(e) => {
-                  const current = dailyLogs.sleep || { actual_time: "", timing_type: "on_time", reason: "" };
-                  updateSleepMetrics(e.target.value, current.timing_type, current.reason);
-                }}
+                value={actualBedtimeInput}
+                onChange={(e) => setActualBedtimeInput(e.target.value)}
+                onBlur={handleActualBedtimeBlur}
                 className="bg-black border border-mono-800 rounded px-2 py-1 text-xs font-mono text-white focus:outline-none focus:border-mono-600"
               />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[9px] uppercase font-bold text-mono-500">Evaluation</label>
               <select
-                value={dailyLogs.sleep?.timing_type || "on_time"}
-                onChange={(e) => {
-                  const current = dailyLogs.sleep || { actual_time: "", timing_type: "on_time", reason: "" };
-                  updateSleepMetrics(current.actual_time, e.target.value, current.reason);
-                }}
+                value={sleepEvaluationInput}
+                onChange={handleSleepEvaluationChange}
                 className="bg-black border border-mono-800 rounded px-2 py-1 text-xs font-mono text-white focus:outline-none focus:border-mono-600"
               >
                 <option value="early" className="bg-mono-900 text-mono-300">Early</option>
@@ -208,11 +240,9 @@ export default function ProtocolList() {
           <div className="flex flex-col gap-1 mt-2">
             <label className="text-[9px] uppercase font-bold text-mono-500">Reflection & Bedtime Notes</label>
             <textarea
-              value={dailyLogs.sleep?.reason || ""}
-              onChange={(e) => {
-                const current = dailyLogs.sleep || { actual_time: "", timing_type: "on_time", reason: "" };
-                updateSleepMetrics(current.actual_time, current.timing_type, e.target.value);
-              }}
+              value={sleepReasonInput}
+              onChange={(e) => setSleepReasonInput(e.target.value)}
+              onBlur={handleSleepReasonBlur}
               rows="2"
               placeholder="Night reflection (e.g. screen time habits, winding down)..."
               className="w-full bg-black border border-mono-800 rounded p-1.5 text-xs text-white font-mono focus:outline-none focus:border-mono-600"
