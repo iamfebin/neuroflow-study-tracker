@@ -1248,41 +1248,35 @@ export function NeuroFlowProvider({ children }) {
 
   // --- NEW BEHAVIORAL TRACKING & VAULT UPDATERS ---
   const updateWakeUpMetrics = useCallback((targetTime, actualTime, onTime, reason) => {
-    setDailyLogs(prev => {
-      const nextLogs = {
-        ...prev,
-        wake_up: { target_time: targetTime, actual_time: actualTime, on_time: onTime, reason }
-      };
-      saveStateAndSync(userSettings, nextLogs);
-      return nextLogs;
-    });
-  }, [userSettings, saveStateAndSync]);
+    const nextLogs = {
+      ...dailyLogs,
+      wake_up: { target_time: targetTime, actual_time: actualTime, on_time: onTime, reason }
+    };
+    setDailyLogs(nextLogs);
+    saveStateAndSync(userSettings, nextLogs);
+  }, [dailyLogs, userSettings, saveStateAndSync]);
 
   const updateSleepMetrics = useCallback((actualTime, timingType, reason) => {
-    setDailyLogs(prev => {
-      const nextLogs = {
-        ...prev,
-        sleep: { actual_time: actualTime, timing_type: timingType, reason }
-      };
-      saveStateAndSync(userSettings, nextLogs);
-      return nextLogs;
-    });
-  }, [userSettings, saveStateAndSync]);
+    const nextLogs = {
+      ...dailyLogs,
+      sleep: { actual_time: actualTime, timing_type: timingType, reason }
+    };
+    setDailyLogs(nextLogs);
+    saveStateAndSync(userSettings, nextLogs);
+  }, [dailyLogs, userSettings, saveStateAndSync]);
 
   const updateBlockQualitativeData = useCallback((blockId, goalAchieved, progressNotes) => {
-    setDailyLogs(prev => {
-      const nextSessionDetails = {
-        ...(prev.session_details || {}),
-        [blockId]: { goal_achieved: goalAchieved, progress_notes: progressNotes }
-      };
-      const nextLogs = {
-        ...prev,
-        session_details: nextSessionDetails
-      };
-      saveStateAndSync(userSettings, nextLogs);
-      return nextLogs;
-    });
-  }, [userSettings, saveStateAndSync]);
+    const nextSessionDetails = {
+      ...(dailyLogs.session_details || {}),
+      [blockId]: { goal_achieved: goalAchieved, progress_notes: progressNotes }
+    };
+    const nextLogs = {
+      ...dailyLogs,
+      session_details: nextSessionDetails
+    };
+    setDailyLogs(nextLogs);
+    saveStateAndSync(userSettings, nextLogs);
+  }, [dailyLogs, userSettings, saveStateAndSync]);
 
   const updateGeminiApiKey = useCallback((apiKey) => {
     const nextSettings = {
@@ -1295,17 +1289,15 @@ export function NeuroFlowProvider({ children }) {
   }, [userSettings, dailyLogs, saveStateAndSync, showToast]);
 
   const toggleDayCompletion = useCallback(() => {
-    setDailyLogs(prev => {
-      const nextCompleted = !prev.day_completed;
-      const nextLogs = {
-        ...prev,
-        day_completed: nextCompleted
-      };
-      saveStateAndSync(userSettings, nextLogs);
-      showToast(nextCompleted ? "Day marked as complete." : "Day marked as incomplete.");
-      return nextLogs;
-    });
-  }, [userSettings, saveStateAndSync, showToast]);
+    const nextCompleted = !dailyLogs.day_completed;
+    const nextLogs = {
+      ...dailyLogs,
+      day_completed: nextCompleted
+    };
+    setDailyLogs(nextLogs);
+    saveStateAndSync(userSettings, nextLogs);
+    showToast(nextCompleted ? "Day marked as complete." : "Day marked as incomplete.");
+  }, [dailyLogs, userSettings, saveStateAndSync, showToast]);
 
   const bypassToSandbox = useCallback(() => {
     setIsOfflineSandbox(true);
