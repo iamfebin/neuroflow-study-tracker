@@ -477,7 +477,6 @@ export function NeuroFlowProvider({ children }) {
 
   // --- TIMELINE BLOCK MUTATIONS ---
 
-  // Swap study block subject key (german, sql, python)
   const swapBlockSubject = useCallback((blockId, newSubject) => {
     const block = protocolSchedule.find(b => b.id === blockId);
     if (!block || block.type !== 'study') return;
@@ -518,11 +517,16 @@ export function NeuroFlowProvider({ children }) {
       return oldName.replace(/^(SQL|German|Python)/i, newSubName);
     };
 
+    const newId = blockId.includes('_block_')
+      ? blockId.replace(/^[^_]+_block_/, `${newSubject}_block_`)
+      : `${newSubject}_block_${blockId}`;
+
     // Update protocol schedule
     const nextSched = protocolSchedule.map(b => {
       if (b.id === blockId) {
         return { 
           ...b, 
+          id: newId,
           key: newSubject,
           name: renameBlockSubjectName(b.name, newSubject)
         };
@@ -531,11 +535,38 @@ export function NeuroFlowProvider({ children }) {
     });
     setProtocolSchedule(nextSched);
 
-    // Update daily logs custom block subjects
-    const nextSubjects = { ...dailyLogs.custom_block_subjects, [blockId]: newSubject };
+    // Update daily logs completion and credit maps with the new ID
+    const nextCompleted = dailyLogs.completed_blocks.map(id => id === blockId ? newId : id);
+
+    const nextManualMins = { ...dailyLogs.manual_credited_mins };
+    if (nextManualMins[blockId] !== undefined) {
+      nextManualMins[newId] = nextManualMins[blockId];
+      delete nextManualMins[blockId];
+    }
+
+    const nextTimerMins = { ...dailyLogs.timer_logged_mins };
+    if (nextTimerMins[blockId] !== undefined) {
+      nextTimerMins[newId] = nextTimerMins[blockId];
+      delete nextTimerMins[blockId];
+    }
+
+    const nextSubjects = { ...dailyLogs.custom_block_subjects };
+    delete nextSubjects[blockId];
+    nextSubjects[newId] = newSubject;
+
+    const nextSessionDetails = dailyLogs.session_details ? { ...dailyLogs.session_details } : {};
+    if (nextSessionDetails[blockId] !== undefined) {
+      nextSessionDetails[newId] = nextSessionDetails[blockId];
+      delete nextSessionDetails[blockId];
+    }
+
     const nextLogs = {
       ...dailyLogs,
-      custom_block_subjects: nextSubjects
+      completed_blocks: nextCompleted,
+      manual_credited_mins: nextManualMins,
+      timer_logged_mins: nextTimerMins,
+      custom_block_subjects: nextSubjects,
+      session_details: nextSessionDetails
     };
     setDailyLogs(nextLogs);
 
@@ -547,6 +578,7 @@ export function NeuroFlowProvider({ children }) {
       if (currentActive && currentActive.id === blockId) {
         return { 
           ...currentActive, 
+          id: newId,
           key: newSubject,
           name: renameBlockSubjectName(currentActive.name, newSubject)
         };
@@ -1038,12 +1070,40 @@ export function NeuroFlowProvider({ children }) {
       }
     }
 
+    // Determine if block ID should change to match the subject or rest conversion
+    let newId = blockId;
+    if (wasStudy && isStudyNow && prevKey !== newKey) {
+      newId = blockId.includes('_block_')
+        ? blockId.replace(/^[^_]+_block_/, `${newKey}_block_`)
+        : `${newKey}_block_${blockId}`;
+    } else if (!wasStudy && isStudyNow) {
+      newId = blockId.includes('_block_')
+        ? blockId.replace(/^[^_]+_block_/, `${newKey}_block_`)
+        : `${newKey}_block_${blockId}`;
+    } else if (wasStudy && !isStudyNow) {
+      newId = blockId.includes('_block_')
+        ? blockId.replace(/^[^_]+_block_/, `rest_block_`)
+        : `rest_block_${blockId}`;
+    }
+
+    // Move manual and timer credited mins from old ID to new ID if it changed
+    if (newId !== blockId) {
+      if (nextManualMins[blockId] !== undefined) {
+        nextManualMins[newId] = nextManualMins[blockId];
+        delete nextManualMins[blockId];
+      }
+      if (nextTimerMins[blockId] !== undefined) {
+        nextTimerMins[newId] = nextTimerMins[blockId];
+        delete nextTimerMins[blockId];
+      }
+    }
+
     // Update protocol schedule and cascade adjacent times to maintain contiguity
     const sortedCopy = [...protocolSchedule].sort((a, b) => a.start.localeCompare(b.start));
     const idx = sortedCopy.findIndex(b => b.id === blockId);
     
     if (idx !== -1) {
-      const updatedBlock = { ...sortedCopy[idx], ...updatedFields };
+      const updatedBlock = { ...sortedCopy[idx], ...updatedFields, id: newId };
       sortedCopy[idx] = updatedBlock;
 
       const timeToMins = (tStr) => {
@@ -1089,19 +1149,36 @@ export function NeuroFlowProvider({ children }) {
     const nextSched = sortedCopy;
     setProtocolSchedule(nextSched);
 
-    // Keep daily logs custom subjects map in sync
+    // Keep daily logs custom subjects map in sync and map completed block IDs
+    let nextCompleted = [...dailyLogs.completed_blocks];
+    if (newId !== blockId) {
+      nextCompleted = nextCompleted.map(id => id === blockId ? newId : id);
+    }
+
+    const nextSessionDetails = dailyLogs.session_details ? { ...dailyLogs.session_details } : {};
+    if (newId !== blockId && nextSessionDetails[blockId] !== undefined) {
+      nextSessionDetails[newId] = nextSessionDetails[blockId];
+      delete nextSessionDetails[blockId];
+    }
+
+    const nextSubjects = dailyLogs.custom_block_subjects ? { ...dailyLogs.custom_block_subjects } : {};
+    if (newId !== blockId) {
+      delete nextSubjects[blockId];
+      if (isStudyNow) {
+        nextSubjects[newId] = newKey;
+      }
+    } else if (updatedFields.key && updatedFields.key !== prevKey) {
+      nextSubjects[blockId] = updatedFields.key;
+    }
+
     const nextLogs = {
       ...dailyLogs,
+      completed_blocks: nextCompleted,
       manual_credited_mins: nextManualMins,
-      timer_logged_mins: nextTimerMins
+      timer_logged_mins: nextTimerMins,
+      session_details: nextSessionDetails,
+      custom_block_subjects: nextSubjects
     };
-
-    if (updatedFields.key && updatedFields.key !== prevKey) {
-      nextLogs.custom_block_subjects = {
-        ...dailyLogs.custom_block_subjects,
-        [blockId]: updatedFields.key
-      };
-    }
     setDailyLogs(nextLogs);
 
     // Sync all states
@@ -1110,7 +1187,7 @@ export function NeuroFlowProvider({ children }) {
     // Keep active loaded block synchronized
     setActiveBlock(currentActive => {
       if (currentActive && currentActive.id === blockId) {
-        return { ...currentActive, ...updatedFields };
+        return { ...currentActive, ...updatedFields, id: newId };
       }
       return currentActive;
     });

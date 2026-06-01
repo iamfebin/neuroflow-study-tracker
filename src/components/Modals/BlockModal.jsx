@@ -49,7 +49,7 @@ export default function BlockModal({ isOpen, onClose, blockToEdit }) {
     if (blockToEdit) {
       editBlock(blockToEdit.id, payload);
     } else {
-      const newId = `${type}_block_${Date.now()}`;
+      const newId = type === 'study' ? `${subject}_block_${Date.now()}` : `${type}_block_${Date.now()}`;
       addBlock({ id: newId, ...payload });
     }
     onClose();
