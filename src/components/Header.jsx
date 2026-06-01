@@ -2,13 +2,18 @@ import React from 'react';
 import { useNeuroFlow } from '../context/NeuroFlowContext';
 
 export default function Header({ onToggleSyncModal, activeTab, onTabChange }) {
-  const { liveClock, isFirebaseConnected, isOfflineSandbox, getAdjustedDate } = useNeuroFlow();
+  const {
+    liveClock,
+    isFirebaseConnected,
+    isOfflineSandbox,
+    getAdjustedDate,
+    currentDateStr,
+    changeViewDate,
+    getFormattedDateStr
+  } = useNeuroFlow();
 
-  const formattedDate = getAdjustedDate().toLocaleDateString(undefined, {
-    month: '2-digit',
-    day: '2-digit',
-    year: 'numeric'
-  });
+  const todayStr = getFormattedDateStr(getAdjustedDate());
+  const isViewingToday = currentDateStr === todayStr;
 
   return (
     <header className="border-b border-mono-800 bg-black/90 backdrop-blur sticky top-0 z-40 px-4 py-3">
@@ -45,8 +50,24 @@ export default function Header({ onToggleSyncModal, activeTab, onTabChange }) {
         </div>
 
         <div className="flex items-center gap-4 text-xs font-mono text-mono-500">
-          <span>{formattedDate}</span>
-          <span className="text-white">{liveClock}</span>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={currentDateStr}
+              onChange={(e) => changeViewDate(e.target.value)}
+              className="bg-black border border-mono-800 text-mono-300 text-xs px-2 py-1 rounded focus:outline-none focus:border-mono-500 font-mono cursor-pointer transition hover:border-mono-750"
+            />
+            {!isViewingToday && (
+              <button
+                onClick={() => changeViewDate(todayStr)}
+                className="text-[9px] font-mono px-1.5 py-1 rounded border border-mono-800 hover:border-white hover:text-white transition uppercase font-bold text-mono-450 bg-mono-900/40"
+                title="Jump to Today"
+              >
+                Today
+              </button>
+            )}
+          </div>
+          <span className="text-white font-bold">{liveClock}</span>
           <button
             onClick={onToggleSyncModal}
             className={`hover:text-white transition uppercase tracking-widest border px-2 py-1 rounded ${

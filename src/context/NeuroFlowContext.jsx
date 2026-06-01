@@ -246,13 +246,34 @@ export function NeuroFlowProvider({ children }) {
     showToast(`Daily study goal updated to ${mins} minutes.`);
   }, [userSettings, dailyLogs, saveStateAndSync, showToast]);
 
-  // Handle Date String alignment
+  const changeViewDate = useCallback((newDateStr) => {
+    setCurrentDateStr(newDateStr);
+    loadLocalState(newDateStr);
+  }, [loadLocalState]);
+
+  const prevTodayStrRef = useRef(null);
+
+  // Handle Date String alignment (auto-rollover only when natural rollover occurs and user is on "today")
   useEffect(() => {
     const now = getAdjustedDate();
-    const dStr = getFormattedDateStr(now);
-    if (dStr !== currentDateStr) {
-      setCurrentDateStr(dStr);
-      loadLocalState(dStr);
+    const todayStr = getFormattedDateStr(now);
+    
+    // On first mount, align view date to today
+    if (prevTodayStrRef.current === null) {
+      prevTodayStrRef.current = todayStr;
+      setCurrentDateStr(todayStr);
+      loadLocalState(todayStr);
+      return;
+    }
+
+    // On natural date rollover
+    if (prevTodayStrRef.current !== todayStr) {
+      const wasViewingToday = currentDateStr === prevTodayStrRef.current;
+      prevTodayStrRef.current = todayStr;
+      if (wasViewingToday) {
+        setCurrentDateStr(todayStr);
+        loadLocalState(todayStr);
+      }
     }
   }, [liveClock, isTimeSimulated, simTimeOffset, currentDateStr, getAdjustedDate, loadLocalState]);
 
@@ -2063,7 +2084,9 @@ export function NeuroFlowProvider({ children }) {
       clearAllCloudData,
       clearDataDateRange,
       clearSpecificDates,
-      toggleDayCompletion
+      toggleDayCompletion,
+      changeViewDate,
+      getFormattedDateStr
     }}>
       {children}
     </NeuroFlowContext.Provider>
