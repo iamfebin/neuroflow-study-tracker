@@ -1155,16 +1155,6 @@ export function NeuroFlowProvider({ children }) {
         const newEnd = minsToTime(timeToMins(newStart) + dur);
         sortedCopy[i] = { ...currBlock, start: newStart, end: newEnd };
       }
-
-      // Backward Cascade: shift preceding blocks keeping their durations constant
-      for (let i = idx - 1; i >= 0; i--) {
-        const nextBlock = sortedCopy[i + 1];
-        const currBlock = sortedCopy[i];
-        const dur = getDuration(currBlock.start, currBlock.end);
-        const newEnd = nextBlock.start;
-        const newStart = minsToTime(timeToMins(newEnd) - dur);
-        sortedCopy[i] = { ...currBlock, start: newStart, end: newEnd };
-      }
     }
 
     const nextSched = sortedCopy;
