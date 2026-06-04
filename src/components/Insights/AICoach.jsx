@@ -148,7 +148,6 @@ Therefore, in the PART 2 JSON block:
 
     // Phase B: Dual-Context System Prompt Overhaul
     setRagStep("Analyzing recent anomaly stream...");
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
     const isWarmUp = historyCount < 3;
     let systemInstruction = "";
@@ -259,21 +258,31 @@ Provide your performance analysis.`;
     let delay = 1000;
 
     while (attempt < 5) {
+      const modelName = attempt < 2 ? "gemini-3.5-flash" : "gemini-3.1-flash-lite";
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+      setRagStep(`Analyzing recent anomaly stream (${modelName})...`);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
       try {
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          signal: controller.signal
         });
 
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
-          throw new Error(`Gemini API Error (HTTP ${response.status})`);
+          throw new Error(`Gemini API Error (HTTP ${response.status}) using ${modelName}`);
         }
 
         const result = await response.json();
         const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) {
-          throw new Error("Empty candidate payload returned from Gemini.");
+          throw new Error(`Empty candidate payload returned from Gemini using ${modelName}`);
         }
 
         // Phase C: Response Parsing & JSON Extraction
@@ -304,12 +313,19 @@ Provide your performance analysis.`;
         setIsLoading(false);
         return;
       } catch (err) {
+        clearTimeout(timeoutId);
         attempt++;
+        const isTimeout = err.name === 'AbortError';
+        const errorMsg = isTimeout ? `Request timed out after 12s` : err.message;
+        console.warn(`Attempt ${attempt} failed with model ${modelName}: ${errorMsg}`);
+
         if (attempt >= 5) {
-          setErrorMessage(err.message || "Failed to generate AI feedback after 5 retries.");
+          setErrorMessage(errorMsg || "Failed to generate AI feedback after 5 retries.");
           setIsLoading(false);
           return;
         }
+        
+        // Wait before retry
         await new Promise(resolve => setTimeout(resolve, delay));
         delay *= 2;
       }
