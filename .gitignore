@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python Analytics
+analytics/serviceAccountKey.json
+analytics/data/
+analytics/plots/
+
